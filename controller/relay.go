@@ -461,6 +461,17 @@ func RelayNotFound(c *gin.Context) {
 	})
 }
 
+// RelayImageOrTask 根据渠道类型动态分发：
+// - task 类渠道（如 RunningHub）走异步 task 流程
+// - 其他渠道走标准 OpenAI image 同步流程
+func RelayImageOrTask(c *gin.Context) {
+	if relay.GetTaskAdaptor(relay.GetTaskPlatform(c)) != nil {
+		RelayTask(c)
+		return
+	}
+	Relay(c, types.RelayFormatOpenAIImage)
+}
+
 func RelayTaskFetch(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {

@@ -40,6 +40,8 @@ import {
   TASK_ACTION_REFERENCE_GENERATE,
   TASK_ACTION_TEXT_GENERATE,
   TASK_ACTION_REMIX_GENERATE,
+  TASK_ACTION_IMAGE_GENERATE,
+  TASK_ACTION_TEXT_OUTPUT,
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import { stringToColor } from '../../../helpers/render';
@@ -132,6 +134,18 @@ const renderType = (type, t) => {
       return (
         <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
           {t('视频Remix')}
+        </Tag>
+      );
+    case TASK_ACTION_IMAGE_GENERATE:
+      return (
+        <Tag color='violet' shape='circle' prefixIcon={<Sparkles size={14} />}>
+          {t('图片生成')}
+        </Tag>
+      );
+    case TASK_ACTION_TEXT_OUTPUT:
+      return (
+        <Tag color='green' shape='circle' prefixIcon={<FileText size={14} />}>
+          {t('文本生成')}
         </Tag>
       );
     default:
@@ -407,6 +421,35 @@ export const getTaskLogsColumns = ({
           );
         }
 
+        // 文本输出预览
+        const isTextOutputTask = record.action === TASK_ACTION_TEXT_OUTPUT;
+        if (isSuccess && isTextOutputTask && resultUrl) {
+          return (
+            <Typography.Text
+              ellipsis={{ showTooltip: true }}
+              style={{ width: 200 }}
+            >
+              {resultUrl}
+            </Typography.Text>
+          );
+        }
+
+        // 图片预览
+        const isImageTask = record.action === TASK_ACTION_IMAGE_GENERATE;
+        const isSuccess = record.status === 'SUCCESS';
+        const resultUrl = record.result_url;
+        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        if (isSuccess && isImageTask && hasResultUrl) {
+          return (
+            <a href={resultUrl} target='_blank' rel='noopener noreferrer'>
+              <img
+                src={resultUrl}
+                alt='result'
+                style={{ maxWidth: 120, maxHeight: 80, borderRadius: 4, cursor: 'pointer' }}
+              />
+            </a>
+          );
+        }
         // 视频预览：优先使用 result_url，兼容旧数据 fail_reason 中的 URL
         const isVideoTask =
           record.action === TASK_ACTION_GENERATE ||
@@ -414,9 +457,6 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_FIRST_TAIL_GENERATE ||
           record.action === TASK_ACTION_REFERENCE_GENERATE ||
           record.action === TASK_ACTION_REMIX_GENERATE;
-        const isSuccess = record.status === 'SUCCESS';
-        const resultUrl = record.result_url;
-        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
         if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a

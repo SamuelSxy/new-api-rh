@@ -2,23 +2,45 @@ package runninghub
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/relay/channel"
-	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
+	ratio_setting "github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
 )
+
+// RunningHub 服务器位于 Tencent EdgeOne CDN 后，CDN 接受 HTTP/2 TLS 协商但在转发时会
+// RST 连接。使用强制 HTTP/1.1 的专用客户端绕过此问题。
+var (
+	runningHubHTTP1Client     *http.Client
+	runningHubHTTP1ClientOnce sync.Once
+)
+
+func getRunningHubClient() *http.Client {
+	runningHubHTTP1ClientOnce.Do(func() {
+		runningHubHTTP1Client = &http.Client{
+			Transport: &http.Transport{
+				ForceAttemptHTTP2: false,
+				TLSClientConfig:   &tls.Config{NextProtos: []string{"http/1.1"}},
+			},
+		}
+	})
+	return runningHubHTTP1Client
+}
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
@@ -31,10 +53,73 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 }
 
+// EstimateBilling implements parameter-based pricing for RunningHub workflows.
+// Reads a pricing parameter (resolution / quality / billing_tier) from request
+// metadata and looks up a model price entry named "{upstreamModel}@{value}".
+//
+// Example admin configuration in the model price table:
+//
+//	rhart-image-n-pro-official/edit       -> 1.0  (base / no-param price)
+//	rhart-image-n-pro-official/edit@1k    -> 0.8
+//	rhart-image-n-pro-official/edit@2k    -> 1.0
+//	rhart-image-n-pro-official/edit@4k    -> 1.5
+//
+// Returns ratio = paramPrice / basePrice so the final charge equals the
+// parameterized price. Falls back to base price when no entry is found.
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	taskReq, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	// Try common pricing parameters in priority order.
+	// Add any custom parameter keys here to support new model-specific pricing dimensions.
+	pricingKeys := []string{"resolution", "quality", "billing_tier", "size", "style", "duration"}
+	var paramValue, matchedKey string
+	for _, key := range pricingKeys {
+		if v, ok := taskReq.Metadata[key]; ok {
+			if s := common.Interface2String(v); strings.TrimSpace(s) != "" {
+				paramValue = strings.TrimSpace(s)
+				matchedKey = key
+				break
+			}
+		}
+	}
+	if paramValue == "" {
+		return nil
+	}
+	// Look up "{upstreamModelName}@{paramValue}" in the model price table.
+	paramModelName := info.UpstreamModelName + "@" + paramValue
+	paramPrice, found := ratio_setting.GetModelPrice(paramModelName, false)
+	if !found {
+		return nil
+	}
+	basePrice := info.PriceData.ModelPrice
+	if basePrice <= 0 {
+		return nil
+	}
+	return map[string]float64{matchedKey: paramPrice / basePrice}
+}
+
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
 	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
 		return taskErr
 	}
+
+	// Determine action based on the request path for the dedicated RunningHub endpoints.
+	// For legacy entries (/v1/video/generations etc.) default to imageGenerate.
+	path := c.Request.URL.Path
+	switch {
+	case strings.HasPrefix(path, "/runninghub/") && strings.Contains(path, "/video"):
+		// Keep the action set by ValidateMultipartDirect:
+		// has image input → "generate" (image-to-video)
+		// no image input  → "textGenerate" (text-to-video)
+	case strings.HasPrefix(path, "/runninghub/") && strings.Contains(path, "/text"):
+		info.Action = constant.TaskActionTextOutput
+	default:
+		// /runninghub/.../image  OR  legacy endpoints → image generation
+		info.Action = constant.TaskActionImageGenerate
+	}
+
 	taskReq, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return service.TaskErrorWrapper(errors.Wrap(err, "get_task_request_failed"), "invalid_request", http.StatusBadRequest)
@@ -108,7 +193,22 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	return channel.DoTaskApiRequest(a, c, info, requestBody)
+	fullRequestURL, err := a.BuildRequestURL(info)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodPost, fullRequestURL, requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("new request failed: %w", err)
+	}
+	if err = a.BuildRequestHeader(c, req, info); err != nil {
+		return nil, fmt.Errorf("setup request header failed: %w", err)
+	}
+	resp, err := getRunningHubClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request failed: %w", err)
+	}
+	return resp, nil
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
@@ -127,6 +227,15 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 
 	upstreamTaskID := extractTaskID(body)
 	if upstreamTaskID == "" && !hasInlineResult(body) {
+		// RunningHub 通过 HTTP 200 + JSON 传递业务错误（如缺少必填字段）
+		if errCode, ok := body["errorCode"].(string); ok && errCode != "" {
+			errMsg, _ := body["errorMessage"].(string)
+			if errMsg == "" {
+				errMsg = errCode
+			}
+			taskErr = service.TaskErrorWrapper(errors.New(errMsg), "upstream_error", http.StatusBadRequest)
+			return
+		}
 		taskErr = service.TaskErrorWrapper(errors.New("taskId is empty"), "invalid_response", http.StatusInternalServerError)
 		return
 	}
@@ -180,6 +289,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		Results      []struct {
 			URL     string `json:"url"`
 			FileURL string `json:"fileUrl"`
+			Text    string `json:"text"`
 		} `json:"results"`
 	}
 	if err := common.Unmarshal(respBody, &taskResp); err != nil {
@@ -197,6 +307,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 				Results      []struct {
 					URL     string `json:"url"`
 					FileURL string `json:"fileUrl"`
+					Text    string `json:"text"`
 				} `json:"results"`
 			} `json:"data"`
 		}
@@ -227,9 +338,14 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskInfo.Status = model.TaskStatusSuccess
 		taskInfo.Progress = taskcommon.ProgressComplete
 		if len(taskResp.Results) > 0 {
-			taskInfo.Url = taskResp.Results[0].URL
+			r := taskResp.Results[0]
+			// Prefer media URL; fall back to text content for text-output workflows
+			taskInfo.Url = r.URL
 			if taskInfo.Url == "" {
-				taskInfo.Url = taskResp.Results[0].FileURL
+				taskInfo.Url = r.FileURL
+			}
+			if taskInfo.Url == "" && r.Text != "" {
+				taskInfo.Url = r.Text
 			}
 		}
 	case "FAIL", "FAILED", "ERROR":
