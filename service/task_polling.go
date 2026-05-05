@@ -28,7 +28,8 @@ type TaskPollingAdaptor interface {
 	ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error)
 	// AdjustBillingOnComplete 在任务到达终态（成功/失败）时由轮询循环调用。
 	// 返回正数触发差额结算（补扣/退还），返回 0 保持预扣费金额不变。
-	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
+	// 第二个返回值为计费日志中显示的 reason 说明。
+	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) (int, string)
 }
 
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
@@ -547,8 +548,11 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		return
 	}
 	// 1. 优先让 adaptor 决定最终额度
-	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+	if actualQuota, reason := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
+		if reason == "" {
+			reason = "adaptor计费调整"
+		}
+		RecalculateTaskQuota(ctx, task, actualQuota, reason)
 		return
 	}
 	// 2. 回退到 token 重算

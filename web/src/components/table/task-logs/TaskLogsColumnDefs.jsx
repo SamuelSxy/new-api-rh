@@ -421,6 +421,11 @@ export const getTaskLogsColumns = ({
           );
         }
 
+        // 公共变量（必须在所有分支使用前声明）
+        const isSuccess = record.status === 'SUCCESS';
+        const resultUrl = record.result_url;
+        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+
         // 文本输出预览
         const isTextOutputTask = record.action === TASK_ACTION_TEXT_OUTPUT;
         if (isSuccess && isTextOutputTask && resultUrl) {
@@ -436,9 +441,6 @@ export const getTaskLogsColumns = ({
 
         // 图片预览
         const isImageTask = record.action === TASK_ACTION_IMAGE_GENERATE;
-        const isSuccess = record.status === 'SUCCESS';
-        const resultUrl = record.result_url;
-        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
         if (isSuccess && isImageTask && hasResultUrl) {
           return (
             <a href={resultUrl} target='_blank' rel='noopener noreferrer'>

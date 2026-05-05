@@ -42,6 +42,14 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	// 非按次计费（token 制）任务：写入 model_ratio，让前端展示为倍率预扣而非"按次"
+	if !common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
+		if modelRatio, hasRatio, _ := ratio_setting.GetModelRatio(info.OriginModelName); hasRatio {
+			other["model_ratio"] = modelRatio
+			other["completion_ratio"] = 1.0
+			delete(other, "model_price")
+		}
+	}
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
