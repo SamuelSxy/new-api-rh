@@ -21,6 +21,7 @@ import {
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
+import { ImageDialog } from '../dialogs/image-dialog'
 import {
   createDurationColumn,
   createChannelColumn,
@@ -38,6 +39,12 @@ function parseTaskData(data: unknown): unknown[] {
     }
   }
   return []
+}
+
+// 通过 URL 扩展名判断是否为视频文件
+const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|avi|mkv|flv|wmv|m4v|ogv)(\?|$)/i
+function isVideoUrl(url: string | undefined | null): boolean {
+  return typeof url === 'string' && VIDEO_EXTENSIONS.test(url)
 }
 
 function AudioPreviewCell({ log }: { log: TaskLog }) {
@@ -69,6 +76,31 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
         open={open}
         onOpenChange={setOpen}
         clips={clips as AudioClip[]}
+      />
+    </>
+  )
+}
+
+function ImagePreviewCell({ imageUrl, taskId }: { imageUrl: string; taskId: string }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <button
+        type='button'
+        className='group flex items-center gap-1 text-left text-xs'
+        onClick={() => setOpen(true)}
+      >
+        <span className='text-foreground leading-snug group-hover:underline'>
+          {t('Click to preview image')}
+        </span>
+      </button>
+      <ImageDialog
+        imageUrl={imageUrl}
+        taskId={taskId}
+        open={open}
+        onOpenChange={setOpen}
       />
     </>
   )
@@ -247,10 +279,12 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           log.action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
           log.action === TASK_ACTIONS.REMIX_GENERATE
+        const isImageTask = log.action === TASK_ACTIONS.IMAGE_GENERATE
+        const isTextOutputTask = log.action === TASK_ACTIONS.TEXT_OUTPUT
         const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
+        const hasResultUrl = !!log.result_url
 
-        if (isSuccess && isVideoTask && isUrl) {
+        if (isSuccess && isVideoTask && hasResultUrl) {
           const videoUrl = `/v1/videos/${log.task_id}/content`
           return (
             <a
@@ -261,6 +295,45 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             >
               {t('Click to preview video')}
             </a>
+          )
+        }
+
+        if (isSuccess && isImageTask && hasResultUrl) {
+          // 根据实际 URL 扩展名判断media 类型
+          if (isVideoUrl(log.result_url)) {
+            const videoUrl = `/v1/videos/${log.task_id}/content`
+            return (
+              <a
+                href={videoUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='text-xs text-foreground hover:underline'
+              >
+                {t('Click to preview video')}
+              </a>
+            )
+          }
+          return <ImagePreviewCell imageUrl={log.result_url!} taskId={log.task_id} />
+        }
+
+        if (isSuccess && isTextOutputTask && log.result_url) {
+          return (
+            <>
+              <button
+                type='button'
+                className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
+                onClick={() => setDialogOpen(true)}
+              >
+                <span className='truncate leading-snug text-foreground group-hover:underline'>
+                  {log.result_url}
+                </span>
+              </button>
+              <FailReasonDialog
+                failReason={log.result_url}
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+              />
+            </>
           )
         }
 

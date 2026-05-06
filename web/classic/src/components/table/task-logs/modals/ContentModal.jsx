@@ -29,9 +29,11 @@ const ContentModal = ({
   setIsModalOpen,
   modalContent,
   isVideo,
+  isImage,
 }) => {
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -39,7 +41,11 @@ const ContentModal = ({
       setVideoError(false);
       setIsLoading(true);
     }
-  }, [isModalOpen, isVideo]);
+    if (isModalOpen && isImage) {
+      setImageError(false);
+      setIsLoading(true);
+    }
+  }, [isModalOpen, isVideo, isImage]);
 
   const handleVideoError = () => {
     setVideoError(true);
@@ -58,8 +64,7 @@ const ContentModal = ({
     window.open(modalContent, '_blank');
   };
 
-  const renderVideoContent = () => {
-    if (videoError) {
+  const renderVideoContent = () => {    if (videoError) {
       return (
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <Text
@@ -152,6 +157,42 @@ const ContentModal = ({
     );
   };
 
+  const renderImageContent = () => {
+    if (imageError) {
+      return (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Text type='tertiary' style={{ display: 'block', marginBottom: '16px' }}>
+            {t('图片无法加载')}
+          </Text>
+          <div style={{ marginTop: '20px' }}>
+            <Button icon={<IconExternalOpen />} onClick={handleOpenInNewTab} style={{ marginRight: '8px' }}>
+              {t('在新标签页中打开')}
+            </Button>
+            <Button icon={<IconCopy />} onClick={handleCopyUrl}>
+              {t('复制链接')}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div style={{ position: 'relative', textAlign: 'center' }}>
+        {isLoading && (
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
+            <Spin size='large' />
+          </div>
+        )}
+        <img
+          src={modalContent}
+          alt='preview'
+          style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 4 }}
+          onLoad={() => setIsLoading(false)}
+          onError={() => { setImageError(true); setIsLoading(false); }}
+        />
+      </div>
+    );
+  };
+
   return (
     <Modal
       visible={isModalOpen}
@@ -159,16 +200,18 @@ const ContentModal = ({
       onCancel={() => setIsModalOpen(false)}
       closable={null}
       bodyStyle={{
-        height: isVideo ? '70vh' : '400px',
+        height: isVideo ? '70vh' : (isImage ? 'auto' : '400px'),
         maxHeight: '80vh',
         overflow: 'auto',
-        padding: isVideo && videoError ? '0' : '24px',
+        padding: (isVideo && videoError) ? '0' : '24px',
       }}
-      width={isVideo ? '90vw' : 800}
-      style={isVideo ? { maxWidth: 960 } : undefined}
+      width={(isVideo || isImage) ? '90vw' : 800}
+      style={(isVideo || isImage) ? { maxWidth: 960 } : undefined}
     >
       {isVideo ? (
         renderVideoContent()
+      ) : isImage ? (
+        renderImageContent()
       ) : (
         <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
       )}

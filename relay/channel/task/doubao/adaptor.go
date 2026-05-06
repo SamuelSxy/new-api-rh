@@ -6,10 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
-
-	ratio_setting "github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/QuantumNous/new-api/common"
 
@@ -135,55 +132,18 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling implements parameter-based pricing for Doubao video tasks.
-// It checks both the output resolution (video_size) and video input presence,
-// and returns any applicable OtherRatios for pre-charge.
-//
-// Resolution-based pricing (admin-configurable):
-//   Reads video_size from request metadata and looks up a model price entry
-//   named "{upstreamModel}@{video_size}" in the admin price table.
-//   Example:
-//	doubao-seedance-2-0-260128        -> 1.0  (base price)
-//	doubao-seedance-2-0-260128@720p   -> 0.8
-//	doubao-seedance-2-0-260128@1080p  -> 1.5
-//
-// Video-input pricing:
-//   Detects video_url in metadata content and applies a discount ratio.
+// EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	taskReq, err := relaycommon.GetTaskRequest(c)
+	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
-
-	result := map[string]float64{}
-
-	// Resolution-based pricing
-	if taskReq.Metadata != nil {
-		videoSize, _ := taskReq.Metadata["video_size"].(string)
-		videoSize = strings.TrimSpace(videoSize)
-		if videoSize != "" {
-			paramModelName := info.UpstreamModelName + "@" + videoSize
-			paramPrice, found := ratio_setting.GetModelPrice(paramModelName, false)
-			if found {
-				basePrice := info.PriceData.ModelPrice
-				if basePrice > 0 {
-					result["video_size"] = paramPrice / basePrice
-				}
-			}
-		}
-	}
-
-	// Video-input pricing
-	if hasVideoInMetadata(taskReq.Metadata) {
+	if hasVideoInMetadata(req.Metadata) {
 		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			result["video_input"] = ratio
+			return map[string]float64{"video_input": ratio}
 		}
 	}
-
-	if len(result) == 0 {
-		return nil
-	}
-	return result
+	return nil
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
@@ -299,64 +259,6 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	return client.Do(req)
 }
 
-// AdjustBillingOnComplete overrides the default token recalculation when a
-// resolution-specific model ratio is configured (e.g. "doubao-seedance-2-0-260128@1080p").
-// It reads the actual resolution from the completed task response, looks up the
-// "@resolution" ratio, and returns the recalculated quota so that
-// settleTaskBillingOnComplete uses it instead of the plain model ratio.
-// Returns 0 to fall back to the default RecalculateTaskQuotaByTokens behaviour.
-func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) (int, string) {
-	if taskResult.TotalTokens <= 0 {
-		common.SysLog(fmt.Sprintf("[Doubao] AdjustBilling skip: TotalTokens=%d, task=%s", taskResult.TotalTokens, task.TaskID))
-		return 0, ""
-	}
-
-	// Parse completed task data to get actual resolution returned by Doubao.
-	var resTask responseTask
-	if err := common.Unmarshal(task.Data, &resTask); err != nil {
-		common.SysLog(fmt.Sprintf("[Doubao] AdjustBilling skip: unmarshal err=%v, task=%s", err, task.TaskID))
-		return 0, ""
-	}
-	if resTask.Resolution == "" {
-		common.SysLog(fmt.Sprintf("[Doubao] AdjustBilling skip: resolution empty, status=%s, task=%s, dataLen=%d", resTask.Status, task.TaskID, len(task.Data)))
-		return 0, ""
-	}
-
-	// Build "model@resolution" name and look up its ratio.
-	modelName := task.Properties.OriginModelName
-	if bc := task.PrivateData.BillingContext; bc != nil && bc.OriginModelName != "" {
-		modelName = bc.OriginModelName
-	}
-	paramModelName := modelName + "@" + strings.ToLower(strings.TrimSpace(resTask.Resolution))
-	modelRatio, hasRatio, _ := ratio_setting.GetModelRatio(paramModelName)
-	// GetModelRatio returns (37.5, SelfUseModeEnabled, ...) when not found; we must
-	// treat "not explicitly configured" as absent to avoid using a wrong default.
-	if !hasRatio {
-		common.SysLog(fmt.Sprintf("[Doubao] AdjustBilling skip: GetModelRatio hasRatio=false for %s, task=%s", paramModelName, task.TaskID))
-		return 0, ""
-	}
-	// Verify the key actually exists in the configured ratio map.
-	if _, exists := ratio_setting.GetModelRatioCopy()[paramModelName]; !exists {
-		common.SysLog(fmt.Sprintf("[Doubao] AdjustBilling skip: key not in ratio map: %s, task=%s", paramModelName, task.TaskID))
-		return 0, ""
-	}
-
-	group := task.Group
-	if group == "" {
-		common.SysLog(fmt.Sprintf("[Doubao] AdjustBilling skip: group empty, task=%s", task.TaskID))
-		return 0, ""
-	}
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	if userRatio, has := ratio_setting.GetGroupGroupRatio(group, group); has {
-		groupRatio = userRatio
-	}
-
-	actualQuota := int(float64(taskResult.TotalTokens) * modelRatio * groupRatio)
-	common.SysLog(fmt.Sprintf("[Doubao] AdjustBilling: task=%s, model=%s, resolution=%s, totalTokens=%d, modelRatio=%.4f, groupRatio=%.4f, preCharge=%d, actualQuota=%d",
-		task.TaskID, paramModelName, resTask.Resolution, taskResult.TotalTokens, modelRatio, groupRatio, task.Quota, actualQuota))
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f", taskResult.TotalTokens, modelRatio, groupRatio)
-	return actualQuota, reason
-}
 
 func (a *TaskAdaptor) GetModelList() []string {
 	return ModelList
@@ -391,13 +293,6 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 
 	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
-	}
-
-	// Map video_size → resolution field (the @suffix is only for billing lookup, not sent upstream)
-	if r.Resolution == "" {
-		if videoSize, _ := metadata["video_size"].(string); strings.TrimSpace(videoSize) != "" {
-			r.Resolution = strings.TrimSpace(videoSize)
-		}
 	}
 
 	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })

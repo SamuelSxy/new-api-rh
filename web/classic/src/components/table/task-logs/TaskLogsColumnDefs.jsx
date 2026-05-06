@@ -40,10 +40,16 @@ import {
   TASK_ACTION_REFERENCE_GENERATE,
   TASK_ACTION_TEXT_GENERATE,
   TASK_ACTION_REMIX_GENERATE,
+  TASK_ACTION_IMAGE_GENERATE,
+  TASK_ACTION_TEXT_OUTPUT,
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import { stringToColor } from '../../../helpers/render';
 import { Avatar, Space } from '@douyinfe/semi-ui';
+
+// 通过 URL 扩展名判断是否为视频文件
+const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|avi|mkv|flv|wmv|m4v|ogv)(\?|$)/i;
+const isVideoUrl = (url) => typeof url === 'string' && VIDEO_EXTENSIONS.test(url);
 
 const colors = [
   'amber',
@@ -132,6 +138,18 @@ const renderType = (type, t) => {
       return (
         <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
           {t('视频Remix')}
+        </Tag>
+      );
+    case TASK_ACTION_IMAGE_GENERATE:
+      return (
+        <Tag color='green' shape='circle' prefixIcon={<Sparkles size={14} />}>
+          {t('图像生成')}
+        </Tag>
+      );
+    case TASK_ACTION_TEXT_OUTPUT:
+      return (
+        <Tag color='lime' shape='circle' prefixIcon={<Sparkles size={14} />}>
+          {t('文本输出')}
         </Tag>
       );
     default:
@@ -240,6 +258,7 @@ export const getTaskLogsColumns = ({
   openContentModal,
   isAdminUser,
   openVideoModal,
+  openImageModal,
   openAudioModal,
 }) => {
   return [
@@ -407,13 +426,15 @@ export const getTaskLogsColumns = ({
           );
         }
 
-        // 视频预览：优先使用 result_url，兼容旧数据 fail_reason 中的 URL
+        // 视频/图片预览：优先使用 result_url，兼容旧数据 fail_reason 中的 URL
         const isVideoTask =
           record.action === TASK_ACTION_GENERATE ||
           record.action === TASK_ACTION_TEXT_GENERATE ||
           record.action === TASK_ACTION_FIRST_TAIL_GENERATE ||
           record.action === TASK_ACTION_REFERENCE_GENERATE ||
           record.action === TASK_ACTION_REMIX_GENERATE;
+        const isImageTask = record.action === TASK_ACTION_IMAGE_GENERATE;
+        const isTextOutputTask = record.action === TASK_ACTION_TEXT_OUTPUT;
         const isSuccess = record.status === 'SUCCESS';
         const resultUrl = record.result_url;
         const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
@@ -428,6 +449,46 @@ export const getTaskLogsColumns = ({
             >
               {t('点击预览视频')}
             </a>
+          );
+        }
+        if (isSuccess && isImageTask && hasResultUrl) {
+          // 根据实际 URL 扩展名判断media 类型：视频用视频弹窗，其余用图片弹窗
+          if (isVideoUrl(resultUrl)) {
+            return (
+              <a
+                href='#'
+                onClick={(e) => {
+                  e.preventDefault();
+                  openVideoModal(resultUrl);
+                }}
+              >
+                {t('点击预览视频')}
+              </a>
+            );
+          }
+          return (
+            <a
+              href='#'
+              onClick={(e) => {
+                e.preventDefault();
+                openImageModal(resultUrl);
+              }}
+            >
+              {t('点击预览图片')}
+            </a>
+          );
+        }
+        if (isSuccess && isTextOutputTask && resultUrl) {
+          return (
+            <Typography.Text
+              ellipsis={{ showTooltip: true }}
+              style={{ width: 100 }}
+              onClick={() => {
+                openContentModal(resultUrl);
+              }}
+            >
+              {resultUrl}
+            </Typography.Text>
           );
         }
         if (!text) {
