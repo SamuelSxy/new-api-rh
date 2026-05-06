@@ -136,34 +136,83 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 // EstimateBilling implements parameter-based pricing for Doubao video tasks.
-// Reads video_size from request metadata and looks up a model price entry
-// named "{upstreamModel}@{video_size}" in the admin price table.
+// It checks both the output resolution (video_size) and video input presence,
+// and returns any applicable OtherRatios for pre-charge.
 //
-// Example admin configuration:
-//
+// Resolution-based pricing (admin-configurable):
+//   Reads video_size from request metadata and looks up a model price entry
+//   named "{upstreamModel}@{video_size}" in the admin price table.
+//   Example:
 //	doubao-seedance-2-0-260128        -> 1.0  (base price)
 //	doubao-seedance-2-0-260128@720p   -> 0.8
 //	doubao-seedance-2-0-260128@1080p  -> 1.5
+//
+// Video-input pricing:
+//   Detects video_url in metadata content and applies a discount ratio.
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	taskReq, err := relaycommon.GetTaskRequest(c)
-	if err != nil || taskReq.Metadata == nil {
+	if err != nil {
 		return nil
 	}
-	videoSize, _ := taskReq.Metadata["video_size"].(string)
-	videoSize = strings.TrimSpace(videoSize)
-	if videoSize == "" {
+
+	result := map[string]float64{}
+
+	// Resolution-based pricing
+	if taskReq.Metadata != nil {
+		videoSize, _ := taskReq.Metadata["video_size"].(string)
+		videoSize = strings.TrimSpace(videoSize)
+		if videoSize != "" {
+			paramModelName := info.UpstreamModelName + "@" + videoSize
+			paramPrice, found := ratio_setting.GetModelPrice(paramModelName, false)
+			if found {
+				basePrice := info.PriceData.ModelPrice
+				if basePrice > 0 {
+					result["video_size"] = paramPrice / basePrice
+				}
+			}
+		}
+	}
+
+	// Video-input pricing
+	if hasVideoInMetadata(taskReq.Metadata) {
+		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
+			result["video_input"] = ratio
+		}
+	}
+
+	if len(result) == 0 {
 		return nil
 	}
-	paramModelName := info.UpstreamModelName + "@" + videoSize
-	paramPrice, found := ratio_setting.GetModelPrice(paramModelName, false)
-	if !found {
-		return nil
+	return result
+}
+
+// hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
+// 避免构建完整的上游 requestPayload。
+func hasVideoInMetadata(metadata map[string]interface{}) bool {
+	if metadata == nil {
+		return false
 	}
-	basePrice := info.PriceData.ModelPrice
-	if basePrice <= 0 {
-		return nil
+	contentRaw, ok := metadata["content"]
+	if !ok {
+		return false
 	}
-	return map[string]float64{"video_size": paramPrice / basePrice}
+	contentSlice, ok := contentRaw.([]interface{})
+	if !ok {
+		return false
+	}
+	for _, item := range contentSlice {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if itemMap["type"] == "video_url" {
+			return true
+		}
+		if _, has := itemMap["video_url"]; has {
+			return true
+		}
+	}
+	return false
 }
 
 // BuildRequestBody converts request into Doubao specific format.
