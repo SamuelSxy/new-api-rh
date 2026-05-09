@@ -42,6 +42,7 @@ import {
   TASK_ACTION_REMIX_GENERATE,
   TASK_ACTION_IMAGE_GENERATE,
   TASK_ACTION_TEXT_OUTPUT,
+  TASK_ACTION_AUDIO_GENERATE,
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import { stringToColor } from '../../../helpers/render';
@@ -150,6 +151,12 @@ const renderType = (type, t) => {
       return (
         <Tag color='lime' shape='circle' prefixIcon={<Sparkles size={14} />}>
           {t('文本输出')}
+        </Tag>
+      );
+    case TASK_ACTION_AUDIO_GENERATE:
+      return (
+        <Tag color='orange' shape='circle' prefixIcon={<Sparkles size={14} />}>
+          TTS
         </Tag>
       );
     default:
@@ -406,13 +413,18 @@ export const getTaskLogsColumns = ({
       dataIndex: 'fail_reason',
       fixed: 'right',
       render: (text, record, index) => {
-        // Suno audio preview
+        // Suno / TTS audio preview
         const isSunoSuccess =
           record.platform === 'suno' &&
           record.status === 'SUCCESS' &&
           Array.isArray(record.data) &&
           record.data.some((c) => c.audio_url);
-        if (isSunoSuccess) {
+        const isAudioSuccess =
+          record.action === TASK_ACTION_AUDIO_GENERATE &&
+          record.status === 'SUCCESS' &&
+          Array.isArray(record.data) &&
+          record.data.some((c) => c.audio_url);
+        if (isSunoSuccess || isAudioSuccess) {
           return (
             <a
               href='#'

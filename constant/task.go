@@ -17,7 +17,8 @@ const (
 	TaskActionReferenceGenerate = "referenceGenerate"
 	TaskActionRemix             = "remixGenerate"
 	TaskActionImageGenerate     = "imageGenerate"
-	TaskActionTextOutput        = "textOutput" // RunningHub text-output workflow
+	TaskActionTextOutput        = "textOutput"        // RunningHub text-output workflow
+	TaskActionAudioGenerate     = "audioGenerate"     // RunningHub audio/TTS workflow
 )
 
 var SunoModel2Action = map[string]string{

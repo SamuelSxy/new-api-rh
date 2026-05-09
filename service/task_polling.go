@@ -449,6 +449,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			// No URL from adaptor — construct proxy URL using public task ID
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
 		}
+		// For audio tasks, format task.Data as [{audio_url: "..."}] for the frontend AudioPreviewCell
+		if task.Action == constant.TaskActionAudioGenerate && taskResult.Url != "" {
+			if audioData, marshalErr := common.Marshal([]map[string]string{{"audio_url": taskResult.Url}}); marshalErr == nil {
+				task.Data = audioData
+			}
+		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
 		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)

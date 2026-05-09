@@ -472,6 +472,18 @@ func RelayImageOrTask(c *gin.Context) {
 	Relay(c, types.RelayFormatOpenAIImage)
 }
 
+// RelayAudioOrTask 对于 RunningHub 渠道，将 /v1/audio/speech 请求转发至
+// 异步 task 流程（结果记录到任务日志）；其他渠道走标准 OpenAI audio 同步流程。
+func RelayAudioOrTask(c *gin.Context) {
+	channelType := c.GetInt("channel_type")
+	logger.LogInfo(c, fmt.Sprintf("RelayAudioOrTask: channel_type=%d, path=%s", channelType, c.Request.URL.Path))
+	if channelType == constant.ChannelTypeRunningHub {
+		RelayTask(c)
+		return
+	}
+	Relay(c, types.RelayFormatOpenAIAudio)
+}
+
 func RelayTaskFetch(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
@@ -597,6 +609,7 @@ func RelayTask(c *gin.Context) {
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
+		logger.LogInfo(c, fmt.Sprintf("RelayTask insert: action=%q platform=%s model=%s", relayInfo.Action, string(result.Platform), relayInfo.OriginModelName))
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
 		}

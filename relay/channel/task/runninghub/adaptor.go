@@ -101,13 +101,59 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	path := c.Request.URL.Path
+
+	// /v1/audio/speech: parse as OpenAI AudioRequest and convert to TaskSubmitReq.
+	// This path is reached when RelayAudioOrTask routes a RunningHub channel here.
+	if strings.HasSuffix(path, "/audio/speech") {
+		var audioReq dto.AudioRequest
+		if err := common.UnmarshalBodyReusable(c, &audioReq); err != nil {
+			return service.TaskErrorWrapper(errors.Wrap(err, "parse_audio_request_failed"), "invalid_request", http.StatusBadRequest)
+		}
+		if strings.TrimSpace(audioReq.Input) == "" {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("input is required"), "invalid_request", http.StatusBadRequest)
+		}
+
+		metadata := map[string]interface{}{}
+		if audioReq.Voice != "" {
+			metadata["voice_id"] = audioReq.Voice
+		}
+		if audioReq.Speed != nil {
+			metadata["speed"] = *audioReq.Speed
+		}
+		if audioReq.ResponseFormat != "" {
+			metadata["response_format"] = audioReq.ResponseFormat
+		}
+		// Merge any extra fields from AudioRequest.Metadata (provider-specific params)
+		if len(audioReq.Metadata) > 0 {
+			var extra map[string]interface{}
+			if err := common.Unmarshal(audioReq.Metadata, &extra); err == nil {
+				for k, v := range extra {
+					metadata[k] = v
+				}
+			}
+		}
+
+		taskReq := relaycommon.TaskSubmitReq{
+			Model:    audioReq.Model,
+			Prompt:   audioReq.Input,
+			Metadata: metadata,
+		}
+		// api_path in metadata overrides the upstream model name (workflow path)
+		if apiPath, ok := metadata["api_path"].(string); ok && strings.TrimSpace(apiPath) != "" {
+			info.UpstreamModelName = strings.TrimSpace(apiPath)
+		}
+		info.Action = constant.TaskActionAudioGenerate
+		c.Set("task_request", taskReq)
+		return nil
+	}
+
 	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
 		return taskErr
 	}
 
 	// Determine action based on the request path for the dedicated RunningHub endpoints.
 	// For legacy entries (/v1/video/generations etc.) default to imageGenerate.
-	path := c.Request.URL.Path
 	switch {
 	case strings.HasPrefix(path, "/runninghub/") && strings.Contains(path, "/video"):
 		// Keep the action set by ValidateMultipartDirect:
@@ -115,6 +161,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		// no image input  → "textGenerate" (text-to-video)
 	case strings.HasPrefix(path, "/runninghub/") && strings.Contains(path, "/text"):
 		info.Action = constant.TaskActionTextOutput
+	case strings.HasPrefix(path, "/runninghub/") && strings.Contains(path, "/audio"):
+		info.Action = constant.TaskActionAudioGenerate
 	default:
 		// /runninghub/.../image  OR  legacy endpoints → image generation
 		info.Action = constant.TaskActionImageGenerate
@@ -164,7 +212,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		body[k] = v
 	}
 	if taskReq.Prompt != "" {
-		body["prompt"] = taskReq.Prompt
+		if info.Action == constant.TaskActionAudioGenerate {
+			// Audio/TTS workflows use "text" as the input field
+			body["text"] = taskReq.Prompt
+			// RunningHub audio requires enable_base64_output; default to false if not set
+			if _, exists := body["enable_base64_output"]; !exists {
+				body["enable_base64_output"] = false
+			}
+		} else {
+			body["prompt"] = taskReq.Prompt
+		}
 	}
 	if taskReq.Image != "" {
 		body["image"] = taskReq.Image

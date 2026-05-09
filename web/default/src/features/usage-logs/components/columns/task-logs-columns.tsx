@@ -259,7 +259,9 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
 
         const isSunoSuccess =
           log.platform === 'suno' && status === TASK_STATUS.SUCCESS
-        if (isSunoSuccess) {
+        const isAudioSuccess =
+          log.action === TASK_ACTIONS.AUDIO_GENERATE && status === TASK_STATUS.SUCCESS
+        if (isSunoSuccess || isAudioSuccess) {
           const data = parseTaskData(log.data)
           if (
             data.some(

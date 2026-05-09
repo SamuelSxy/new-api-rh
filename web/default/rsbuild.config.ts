@@ -83,7 +83,7 @@ export default defineConfig(({ envMode }) => {
       removeConsole: isProd ? ['log'] : false,
       // Speed up repeated `rsbuild build` (local + CI when node_modules/.cache is preserved).
       // @see https://v2.rsbuild.dev/config/performance/build-cache
-      buildCache: {
+      buildCache: process.env.RSBUILD_BUILD_CACHE !== 'false' && {
         cacheDigest: [process.env.VITE_REACT_APP_VERSION],
       },
     },

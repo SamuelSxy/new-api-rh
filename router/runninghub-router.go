@@ -18,6 +18,8 @@ func SetRunningHubRouter(router *gin.Engine) {
 		rhRouter.POST("/video", controller.RelayTask)
 		// Text output workflow (textOutput)
 		rhRouter.POST("/text", controller.RelayTask)
+		// Audio/TTS workflow (audioGenerate)
+		rhRouter.POST("/audio", controller.RelayTask)
 		// Task fetch (shared across all task types)
 		rhRouter.GET("/task/:task_id", controller.RelayTaskFetch)
 	}
