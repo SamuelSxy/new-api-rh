@@ -197,7 +197,31 @@ func TokenOrUserAuth() func(c *gin.Context) {
 		session := sessions.Default(c)
 		if id := session.Get("id"); id != nil {
 			if status, ok := session.Get("status").(int); ok && status == common.UserStatusEnabled {
-				c.Set("id", id)
+				var userId int
+				switch v := id.(type) {
+				case int:
+					userId = v
+				case int64:
+					userId = int(v)
+				case float64:
+					userId = int(v)
+				default:
+					TokenAuth()(c)
+					return
+				}
+
+				c.Set("id", userId)
+				if userCache, err := model.GetUserCache(userId); err == nil && userCache != nil {
+					userCache.WriteContext(c)
+				}
+
+				if group, ok := session.Get("group").(string); ok && group != "" {
+					c.Set("group", group)
+					c.Set("user_group", group)
+					common.SetContextKey(c, constant.ContextKeyUserGroup, group)
+					common.SetContextKey(c, constant.ContextKeyUsingGroup, group)
+				}
+				c.Set("session_auth", true)
 				c.Next()
 				return
 			}

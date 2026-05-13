@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
 import { useEffect } from 'react'
+import { getStudioFormSchema } from '../api'
+import type { StudioFormSchema, StudioFormValue } from '../types'
+import { getDefaultStudioSchema, buildInitialFormValues } from '../schema'
 import { StudioPromptInput } from './studio-prompt-input'
+import { StudioFormFields } from './studio-form-fields'
 import type { ModelOption } from '../types'
 import { API_ENDPOINTS } from '../constants'
 
@@ -17,6 +21,12 @@ export function ScriptTab({ models }: ScriptTabProps) {
   const [prompt, setPrompt] = useState('')
   const [output, setOutput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [schema, setSchema] = useState<StudioFormSchema>(() =>
+    getDefaultStudioSchema('script')
+  )
+  const [formValues, setFormValues] = useState<Record<string, StudioFormValue>>(
+    () => buildInitialFormValues(getDefaultStudioSchema('script'))
+  )
   const sseRef = useRef<SSE | null>(null)
 
   useEffect(() => {
@@ -24,6 +34,34 @@ export function ScriptTab({ models }: ScriptTabProps) {
       setModel(models[0].value)
     }
   }, [model, models])
+
+  useEffect(() => {
+    if (!model) {
+      return
+    }
+
+    let mounted = true
+    getStudioFormSchema('script', model)
+      .then(({ schema: nextSchema, initialValues }) => {
+        if (!mounted) {
+          return
+        }
+        setSchema(nextSchema)
+        setFormValues(initialValues)
+      })
+      .catch(() => {
+        if (!mounted) {
+          return
+        }
+        const fallback = getDefaultStudioSchema('script')
+        setSchema(fallback)
+        setFormValues(buildInitialFormValues(fallback))
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [model])
 
   const stop = useCallback(() => {
     sseRef.current?.close()
@@ -43,6 +81,14 @@ export function ScriptTab({ models }: ScriptTabProps) {
         model,
         messages: [{ role: 'user', content: prompt }],
         stream: true,
+        temperature:
+          typeof formValues.temperature === 'number'
+            ? formValues.temperature
+            : undefined,
+        max_tokens:
+          typeof formValues.max_tokens === 'number'
+            ? formValues.max_tokens
+            : undefined,
       }),
     })
     sseRef.current = source
@@ -72,6 +118,15 @@ export function ScriptTab({ models }: ScriptTabProps) {
 
   return (
     <div className='space-y-4'>
+      <StudioFormFields
+        schema={schema}
+        values={formValues}
+        onValueChange={(key, value) => {
+          setFormValues((prev) => ({ ...prev, [key]: value }))
+        }}
+        disabled={isStreaming}
+      />
+
       {output && (
         <div className='bg-muted/60 border rounded-2xl p-4 text-sm whitespace-pre-wrap'>
           {output}

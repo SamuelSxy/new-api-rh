@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -291,6 +292,10 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
+	// Studio/schema 历史配置里常见 resolution 为 "720" / "1080" / "1280x720"，
+	// doubao i2v 期望 "720p" / "1080p" 这类枚举，这里做兼容归一化。
+	r.Resolution = normalizeDoubaoResolution(r.Resolution)
+
 	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
 	}
@@ -302,6 +307,24 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	})
 
 	return &r, nil
+}
+
+func normalizeDoubaoResolution(value string) string {
+	v := strings.TrimSpace(strings.ToLower(value))
+	if v == "" {
+		return value
+	}
+
+	switch v {
+	case "480", "480p", "640x480":
+		return "480p"
+	case "720", "720p", "1280x720":
+		return "720p"
+	case "1080", "1080p", "1920x1080":
+		return "1080p"
+	default:
+		return value
+	}
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {

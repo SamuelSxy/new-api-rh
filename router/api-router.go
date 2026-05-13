@@ -385,5 +385,25 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
+		studioRoute := apiRouter.Group("/studio")
+		studioRoute.Use(middleware.UserAuth())
+		{
+			studioRoute.GET("/models", controller.GetStudioModels)
+			studioRoute.GET("/form-schemas", controller.GetStudioFormSchemas)
+		}
+
+		studioAdminRoute := apiRouter.Group("/studio/admin")
+		studioAdminRoute.Use(middleware.AdminAuth())
+		{
+			studioAdminRoute.GET("/models", controller.AdminGetStudioModels)
+			studioAdminRoute.POST("/models", controller.AdminCreateStudioModel)
+			studioAdminRoute.PUT("/models", controller.AdminUpdateStudioModel)
+			studioAdminRoute.DELETE("/models/:id", controller.AdminDeleteStudioModel)
+
+			studioAdminRoute.GET("/form-schemas", controller.AdminGetStudioFormSchemas)
+			studioAdminRoute.POST("/form-schemas", controller.AdminCreateStudioFormSchema)
+			studioAdminRoute.PUT("/form-schemas", controller.AdminUpdateStudioFormSchema)
+			studioAdminRoute.DELETE("/form-schemas/:id", controller.AdminDeleteStudioFormSchema)
+		}
 	}
 }

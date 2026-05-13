@@ -7,24 +7,38 @@ import {
   TabsContent,
 } from '@/components/ui/tabs'
 import { Loader2 } from 'lucide-react'
-import { getUserModels } from '../api'
-import { STUDIO_TABS } from '../constants'
-import type { ModelOption } from '../types'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
+import { getStudioModels, getUserModels } from '../api'
+import { STUDIO_TABS, type StudioTab } from '../constants'
+import type { ModelOption, StudioModelType } from '../types'
 import { ScriptTab } from './script-tab'
 import { ImageTab } from './image-tab'
 import { VoiceTab } from './voice-tab'
 import { VideoTab } from './video-tab'
+import { StudioAdminPanel } from './studio-admin-panel'
 
 export function Studio() {
   const { t } = useTranslation()
+  const user = useAuthStore((state) => state.auth.user)
   const [models, setModels] = useState<ModelOption[]>([])
+  const [activeTab, setActiveTab] = useState<StudioTab>(STUDIO_TABS.SCRIPT)
   const [isLoadingModels, setIsLoadingModels] = useState(true)
+  const canManageStudio = (user?.role ?? 0) >= ROLE.ADMIN
 
   useEffect(() => {
-    getUserModels()
-      .then(setModels)
+    setIsLoadingModels(true)
+    getStudioModels(activeTab as StudioModelType)
+      .then(async (studioModels) => {
+        if (studioModels.length > 0) {
+          setModels(studioModels)
+          return
+        }
+        const fallbackModels = await getUserModels()
+        setModels(fallbackModels)
+      })
       .finally(() => setIsLoadingModels(false))
-  }, [])
+  }, [activeTab])
 
   if (isLoadingModels) {
     return (
@@ -44,7 +58,9 @@ export function Studio() {
         </p>
       </div>
 
-      <Tabs defaultValue={STUDIO_TABS.SCRIPT}>
+      {canManageStudio && <StudioAdminPanel />}
+
+      <Tabs defaultValue={STUDIO_TABS.SCRIPT} value={activeTab} onValueChange={(value) => setActiveTab(value as StudioTab)}>
         <TabsList className='w-full justify-start overflow-x-auto'>
           <TabsTrigger value={STUDIO_TABS.SCRIPT}>{t('Generate Script')}</TabsTrigger>
           <TabsTrigger value={STUDIO_TABS.IMAGE}>{t('Generate Image')}</TabsTrigger>
@@ -63,7 +79,7 @@ export function Studio() {
             <VoiceTab models={models} />
           </TabsContent>
           <TabsContent value={STUDIO_TABS.VIDEO}>
-            <VideoTab />
+            <VideoTab models={models} />
           </TabsContent>
         </div>
       </Tabs>

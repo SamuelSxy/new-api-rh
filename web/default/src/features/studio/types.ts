@@ -3,6 +3,59 @@ export interface ModelOption {
   value: string
 }
 
+export type StudioModelType = 'script' | 'image' | 'voice' | 'video'
+
+export interface StudioModelConfig {
+  id: number
+  name: string
+  model_name: string
+  model_type: StudioModelType
+  description?: string
+  capability?: string
+  default_params?: string
+  visible_groups?: string
+  status: number
+}
+
+export interface StudioFormSchemaRecord {
+  id: number
+  name: string
+  model_type: StudioModelType
+  model_name?: string
+  version: number
+  schema: string
+  description?: string
+  status: number
+}
+
+export interface StudioFormFieldOption {
+  label: string
+  value: string
+}
+
+export interface StudioFormField {
+  key: string
+  label: string
+  type: 'text' | 'textarea' | 'number' | 'select' | 'switch' | 'image_upload'
+  required?: boolean
+  placeholder?: string
+  helpText?: string
+  min?: number
+  max?: number
+  step?: number
+  options?: StudioFormFieldOption[]
+  defaultValue?: string | number | boolean | string[]
+}
+
+export type StudioFormValue = string | number | boolean | string[]
+
+export interface StudioFormSchema {
+  name: string
+  modelType: StudioModelType
+  modelName?: string
+  fields: StudioFormField[]
+}
+
 // Script tab
 export interface ScriptRequest {
   model: string
@@ -16,6 +69,12 @@ export interface ImageRequest {
   prompt: string
   n?: number
   size?: string
+  metadata?: {
+    imageUrls?: string[]
+    aspectRatio?: string
+    resolution?: string
+    [key: string]: unknown
+  }
 }
 
 export interface ImageResponse {
@@ -27,4 +86,16 @@ export interface VoiceRequest {
   model: string
   input: string
   voice?: string
+  speed?: number
+  response_format?: string
+  metadata?: {
+    voice_id?: string
+    speed?: number
+    volume?: number
+    pitch?: number
+    emotion?: string
+    enable_base64_output?: boolean
+    english_normalization?: boolean
+    [key: string]: unknown
+  }
 }
