@@ -1,5 +1,6 @@
 import type { IntegrationSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ArkAssetSettingsSection } from './ark-asset-settings-section'
 import { EmailSettingsSection } from './email-settings-section'
 import { IoNetDeploymentSettingsSection } from './ionet-deployment-settings-section'
 import { MonitoringSettingsSection } from './monitoring-settings-section'
@@ -134,6 +135,22 @@ const INTEGRATIONS_SECTIONS = [
             settings['monitor_setting.auto_test_channel_enabled'],
           'monitor_setting.auto_test_channel_minutes':
             settings['monitor_setting.auto_test_channel_minutes'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'ark-asset',
+    titleKey: 'Ark Asset Settings',
+    descriptionKey: 'Configure Volcengine Ark Asset API for Seedance uploads',
+    build: (settings: IntegrationSettings) => (
+      <ArkAssetSettingsSection
+        defaultValues={{
+          ArkAssetAccessKey: settings.ArkAssetAccessKey,
+          ArkAssetSecretKey: settings.ArkAssetSecretKey,
+          ArkAssetRegion: settings.ArkAssetRegion,
+          ArkAssetProjectName: settings.ArkAssetProjectName,
+          ArkAssetGroupId: settings.ArkAssetGroupId,
         }}
       />
     ),

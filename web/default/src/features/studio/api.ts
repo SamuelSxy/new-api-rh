@@ -15,6 +15,8 @@ import type {
   StudioModelConfig,
   StudioModelType,
   StudioFormValue,
+  UserAsset,
+  UserAssetListResponse,
 } from './types'
 
 export async function getUserModels(): Promise<ModelOption[]> {
@@ -242,4 +244,53 @@ export async function fetchUserTaskById(taskId: string): Promise<unknown> {
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
+}
+
+export async function uploadUserAsset(
+  file: File,
+  name: string,
+  assetType: 'Image' | 'Video'
+): Promise<UserAsset | null> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('name', name)
+  form.append('asset_type', assetType)
+  const res = await api.post(API_ENDPOINTS.STUDIO_ASSETS, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  const { data } = res
+  if (!data.success || !data.data) return null
+  return data.data as UserAsset
+}
+
+export async function listUserAssets(
+  assetType?: 'Image' | 'Video',
+  page = 1,
+  pageSize = 40
+): Promise<UserAssetListResponse> {
+  const params: Record<string, unknown> = { page, page_size: pageSize }
+  if (assetType) params['asset_type'] = assetType
+  const res = await api.get(API_ENDPOINTS.STUDIO_ASSETS, { params })
+  const { data } = res
+  if (!data.success || !data.data) return { items: [], total: 0, page: 1, page_size: pageSize }
+  return data.data as UserAssetListResponse
+}
+
+export async function deleteUserAsset(id: number): Promise<boolean> {
+  const res = await api.delete(`${API_ENDPOINTS.STUDIO_ASSETS}/${id}`)
+  const { data } = res
+  return Boolean(data.success)
+}
+
+export async function syncAssetArkStatus(id: number): Promise<string> {
+  try {
+    const res = await api.get(`${API_ENDPOINTS.STUDIO_ASSETS}/${id}/ark-status`)
+    const { data } = res
+    if (data.success && data.data) {
+      return (data.data as { ark_status: string }).ark_status ?? ''
+    }
+  } catch {
+    // ignore
+  }
+  return ''
 }

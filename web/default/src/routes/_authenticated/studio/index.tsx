@@ -10,7 +10,7 @@ function StudioPage() {
   return (
     <>
       <AppHeader />
-      <Main>
+      <Main className='overflow-y-auto'>
         <Studio />
       </Main>
     </>

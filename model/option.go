@@ -73,6 +73,11 @@ func InitOptionMap() {
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
+	common.OptionMap["ArkAssetAccessKey"] = system_setting.ArkAssetAccessKey
+	common.OptionMap["ArkAssetSecretKey"] = system_setting.ArkAssetSecretKey
+	common.OptionMap["ArkAssetRegion"] = system_setting.ArkAssetRegion
+	common.OptionMap["ArkAssetProjectName"] = system_setting.ArkAssetProjectName
+	common.OptionMap["ArkAssetGroupId"] = system_setting.ArkAssetGroupId
 	common.OptionMap["PayAddress"] = ""
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
@@ -351,6 +356,16 @@ func updateOptionMap(key string, value string) (err error) {
 		system_setting.WorkerUrl = value
 	case "WorkerValidKey":
 		system_setting.WorkerValidKey = value
+	case "ArkAssetAccessKey":
+		system_setting.ArkAssetAccessKey = value
+	case "ArkAssetSecretKey":
+		system_setting.ArkAssetSecretKey = value
+	case "ArkAssetRegion":
+		system_setting.ArkAssetRegion = value
+	case "ArkAssetProjectName":
+		system_setting.ArkAssetProjectName = value
+	case "ArkAssetGroupId":
+		system_setting.ArkAssetGroupId = value
 	case "PayAddress":
 		operation_setting.PayAddress = value
 	case "Chats":

@@ -282,6 +282,7 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&StudioModelConfig{},
 		&StudioFormSchema{},
+		&UserAsset{},
 	)
 	if err != nil {
 		return err

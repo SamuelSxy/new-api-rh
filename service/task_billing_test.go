@@ -623,7 +623,7 @@ func (m *mockAdaptor) FetchTask(string, string, map[string]any, string) (*http.R
 }
 func (m *mockAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) { return nil, nil }
 func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
-	return m.adjustReturn, ""
+	return m.adjustReturn
 }
 
 // ===========================================================================

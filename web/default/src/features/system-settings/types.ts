@@ -142,6 +142,11 @@ export type IntegrationSettings = {
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
+  ArkAssetAccessKey: string
+  ArkAssetSecretKey: string
+  ArkAssetRegion: string
+  ArkAssetProjectName: string
+  ArkAssetGroupId: string
   ChannelDisableThreshold: string
   QuotaRemindThreshold: string
   AutomaticDisableChannelEnabled: boolean

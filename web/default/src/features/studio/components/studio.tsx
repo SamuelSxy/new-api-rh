@@ -49,7 +49,7 @@ export function Studio() {
   }
 
   return (
-    <div className='relative flex size-full flex-col overflow-hidden'>
+    <div className='relative flex flex-col'>
       <div className='mx-auto flex w-full max-w-4xl flex-1 flex-col gap-5 px-2 py-4 md:px-4'>
       <div>
         <h1 className='text-2xl font-semibold'>{t('Studio')}</h1>

@@ -18,4 +18,5 @@ export const API_ENDPOINTS = {
   STUDIO_ADMIN_MODELS: '/api/studio/admin/models',
   STUDIO_ADMIN_FORM_SCHEMAS: '/api/studio/admin/form-schemas',
   TASK_SELF: '/api/task/self',
+  STUDIO_ASSETS: '/api/studio/assets',
 } as const

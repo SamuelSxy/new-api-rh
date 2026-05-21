@@ -74,6 +74,11 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   WaffoPancakeCurrency: 'USD',
   WaffoPancakeUnitPrice: 1,
   WaffoPancakeMinTopUp: 1,
+  ArkAssetAccessKey: '',
+  ArkAssetSecretKey: '',
+  ArkAssetRegion: 'cn-beijing',
+  ArkAssetProjectName: '',
+  ArkAssetGroupId: '',
 }
 
 export function IntegrationSettings() {

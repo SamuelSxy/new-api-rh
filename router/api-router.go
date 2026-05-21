@@ -385,11 +385,19 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
+		// Public: serve asset files without auth (UUID filenames are non-guessable)
+		apiRouter.GET("/studio/assets/file/:userId/:filename", controller.ServeUserAssetFile)
+
 		studioRoute := apiRouter.Group("/studio")
 		studioRoute.Use(middleware.UserAuth())
 		{
 			studioRoute.GET("/models", controller.GetStudioModels)
 			studioRoute.GET("/form-schemas", controller.GetStudioFormSchemas)
+			// Asset library
+			studioRoute.POST("/assets", controller.UploadUserAsset)
+			studioRoute.GET("/assets", controller.ListUserAssets)
+			studioRoute.GET("/assets/:id/ark-status", controller.SyncUserAssetArkStatus)
+			studioRoute.DELETE("/assets/:id", controller.DeleteUserAsset)
 		}
 
 		studioAdminRoute := apiRouter.Group("/studio/admin")

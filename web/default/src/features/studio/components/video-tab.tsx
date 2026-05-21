@@ -13,6 +13,10 @@ interface VideoTabProps {
   models: ModelOption[]
 }
 
+function isSeedanceModel(modelName: string): boolean {
+  return modelName.toLowerCase().includes('seedance')
+}
+
 export function VideoTab({ models }: VideoTabProps) {
   const { t } = useTranslation()
   const [model, setModel] = useState(models[0]?.value ?? '')
@@ -484,6 +488,7 @@ export function VideoTab({ models }: VideoTabProps) {
         onValueChange={(key, value) => {
           setFormValues((prev) => ({ ...prev, [key]: value }))
         }}
+        showAssetLibrary={isSeedanceModel(model)}
       />
 
       <div className='flex items-start gap-3 rounded-2xl border bg-muted/20 p-4'>

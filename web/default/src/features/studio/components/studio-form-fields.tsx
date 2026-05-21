@@ -13,13 +13,15 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
-import type { StudioFormField, StudioFormSchema, StudioFormValue } from '../types'
+import type { StudioFormField, StudioFormSchema, StudioFormValue, UserAsset } from '../types'
+import { AssetLibraryDialog } from './asset-library-dialog'
 
 interface StudioFormFieldsProps {
   schema: StudioFormSchema
   values: Record<string, StudioFormValue>
   onValueChange: (key: string, value: StudioFormValue) => void
   disabled?: boolean
+  showAssetLibrary?: boolean
 }
 
 export function StudioFormFields({
@@ -27,15 +29,58 @@ export function StudioFormFields({
   values,
   onValueChange,
   disabled = false,
+  showAssetLibrary = false,
 }: StudioFormFieldsProps) {
   const { t } = useTranslation()
+  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false)
+  const [assetLibraryField, setAssetLibraryField] = useState<{
+    key: string
+    assetType: 'Image' | 'Video'
+  } | null>(null)
+  // Maps submit URL → preview URL for library-selected images.
+  // Base64 uploads use the same string for both, so no entry needed.
+  const [imagePreviewMap, setImagePreviewMap] = useState<Map<string, string>>(new Map())
 
   if (schema.fields.length === 0) {
     return null
   }
 
+  const openAssetLibrary = (key: string, assetType: 'Image' | 'Video') => {
+    setAssetLibraryField({ key, assetType })
+    setAssetLibraryOpen(true)
+  }
+
+  const handleAssetSelect = (asset: UserAsset) => {
+    if (!assetLibraryField) return
+    const submitUrl = asset.ark_asset_uri || asset.source_url
+    const previewUrl = asset.source_url
+    const fieldDef = schema.fields.find((f) => f.key === assetLibraryField.key)
+    if (fieldDef?.type === 'image_upload') {
+      // Append to the existing images array
+      const existing = Array.isArray(values[assetLibraryField.key])
+        ? (values[assetLibraryField.key] as string[])
+        : []
+      onValueChange(assetLibraryField.key, [...existing, submitUrl])
+      // Track preview URL separately so the thumbnail can display correctly
+      if (submitUrl !== previewUrl) {
+        setImagePreviewMap((prev) => new Map([...prev, [submitUrl, previewUrl]]))
+      }
+    } else {
+      onValueChange(assetLibraryField.key, submitUrl)
+    }
+  }
+
   return (
-    <div className='rounded-2xl border bg-muted/20 p-4'>
+    <>
+      {showAssetLibrary && assetLibraryField && (
+        <AssetLibraryDialog
+          open={assetLibraryOpen}
+          onOpenChange={setAssetLibraryOpen}
+          defaultAssetType={assetLibraryField.assetType}
+          onSelect={handleAssetSelect}
+        />
+      )}
+      <div className='rounded-2xl border bg-muted/20 p-4'>
       <div className='mb-3 text-sm font-medium'>{t('Parameters')}</div>
       <div className='grid gap-3 md:grid-cols-2'>
         {schema.fields.map((field) => {
@@ -121,12 +166,49 @@ export function StudioFormFields({
               )}
 
               {field.type === 'image_upload' && (
-                <ImageUploadField
-                  field={field}
-                  value={value}
-                  disabled={disabled}
-                  onValueChange={(nextValue) => onValueChange(field.key, nextValue)}
-                />
+                <div className='space-y-1.5'>
+                  <ImageUploadField
+                    field={field}
+                    value={value}
+                    disabled={disabled}
+                    previewMap={imagePreviewMap}
+                    onValueChange={(nextValue) => onValueChange(field.key, nextValue)}
+                  />
+                  {showAssetLibrary && (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      disabled={disabled}
+                      onClick={() => openAssetLibrary(field.key, 'Image')}
+                    >
+                      {t('From Library')}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {field.type === 'asset_uri' && (
+                <div className='flex gap-2'>
+                  <Input
+                    id={field.key}
+                    value={String(value)}
+                    placeholder={field.placeholder ? t(field.placeholder) : undefined}
+                    disabled={disabled}
+                    onChange={(event) => onValueChange(field.key, event.target.value)}
+                  />
+                  {showAssetLibrary && (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      disabled={disabled}
+                      onClick={() => openAssetLibrary(field.key, 'Video')}
+                    >
+                      {t('From Library')}
+                    </Button>
+                  )}
+                </div>
               )}
 
               {field.helpText && (
@@ -137,6 +219,7 @@ export function StudioFormFields({
         })}
       </div>
     </div>
+    </>
   )
 }
 
@@ -144,6 +227,8 @@ interface ImageUploadFieldProps {
   field: StudioFormField
   value: StudioFormValue
   disabled: boolean
+  /** Maps submit URL → preview URL for library-selected assets */
+  previewMap?: Map<string, string>
   onValueChange: (value: string[]) => void
 }
 
@@ -151,6 +236,7 @@ function ImageUploadField({
   field,
   value,
   disabled,
+  previewMap,
   onValueChange,
 }: ImageUploadFieldProps) {
   const { t } = useTranslation()
@@ -293,7 +379,7 @@ function ImageUploadField({
             {images.map((item, index) => (
               <div key={`${field.key}-${index}`} className='relative'>
                 <img
-                  src={item}
+                  src={previewMap?.get(item) ?? item}
                   alt={`${field.key}-${index}`}
                   className='h-16 w-full rounded-md border object-cover'
                 />

@@ -36,7 +36,7 @@ export interface StudioFormFieldOption {
 export interface StudioFormField {
   key: string
   label: string
-  type: 'text' | 'textarea' | 'number' | 'select' | 'switch' | 'image_upload'
+  type: 'text' | 'textarea' | 'number' | 'select' | 'switch' | 'image_upload' | 'asset_uri'
   required?: boolean
   placeholder?: string
   helpText?: string
@@ -98,4 +98,26 @@ export interface VoiceRequest {
     english_normalization?: boolean
     [key: string]: unknown
   }
+}
+
+export interface UserAsset {
+  id: number
+  user_id: number
+  name: string
+  asset_type: 'Image' | 'Video'
+  file_name: string
+  file_size: number
+  content_type: string
+  source_url: string
+  ark_asset_id?: string
+  ark_asset_uri?: string
+  ark_status?: string // Processing | Active | Failed | ''
+  created_time: number
+}
+
+export interface UserAssetListResponse {
+  items: UserAsset[]
+  total: number
+  page: number
+  page_size: number
 }
