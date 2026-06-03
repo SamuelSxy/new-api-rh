@@ -127,31 +127,36 @@ func UploadUserAsset(c *gin.Context) {
 	// It works regardless of how the server is accessed externally.
 	sourceURL := fmt.Sprintf("/api/studio/assets/file/%d/%s", userId, storedFileName)
 
-	// For Ark API calls, an absolute publicly-accessible URL is required.
-	// The default ServerAddress is "http://localhost:3000" which Ark's external
-	// servers cannot reach, so we treat localhost/127.x as "not configured".
+	// For Ark API calls and direct external access (e.g. Seedance), an absolute
+	// publicly-accessible URL is required. localhost/127.x addresses cannot be
+	// reached by external services, so we skip Ark registration in that case but
+	// always continue to save the file to the database.
 	serverAddr := strings.TrimRight(system_setting.ServerAddress, "/")
 	arkAddrInvalid := serverAddr == "" ||
 		strings.HasPrefix(serverAddr, "http://localhost") ||
 		strings.HasPrefix(serverAddr, "https://localhost") ||
 		strings.HasPrefix(serverAddr, "http://127.") ||
 		strings.HasPrefix(serverAddr, "https://127.")
-	if system_setting.ArkAssetAccessKey != "" && system_setting.ArkAssetSecretKey != "" && arkAddrInvalid {
-		common.ApiErrorMsg(c, "Ark 资源上传需要在系统设置中配置真实的公网 ServerAddress（当前为 localhost，Ark 外部服务器无法访问）")
-		return
-	}
-	arkDownloadURL := serverAddr + sourceURL
 
-	// Register with Ark Asset API (skipped silently if no credentials configured)
-	arkAssetId, arkAssetUri, arkErr := service.ArkCreateAsset(
-		name,
-		arkDownloadURL,
-		assetType,
-		system_setting.ArkAssetProjectName,
-		system_setting.ArkAssetGroupId,
-	)
-	if arkErr != nil {
-		common.SysError(fmt.Sprintf("ark asset register failed: user_id=%d file=%s err=%v", userId, storedFileName, arkErr))
+	var arkAssetId, arkAssetUri string
+	if !arkAddrInvalid {
+		// Absolute URL that external services (Ark, Seedance) can reach.
+		arkDownloadURL := serverAddr + sourceURL
+		var arkErr error
+		arkAssetId, arkAssetUri, arkErr = service.ArkCreateAsset(
+			name,
+			arkDownloadURL,
+			assetType,
+			system_setting.ArkAssetProjectName,
+			system_setting.ArkAssetGroupId,
+		)
+		if arkErr != nil {
+			// ArkCreateAsset already sets arkAssetUri = arkDownloadURL on error,
+			// so external services can still attempt to use the public URL directly.
+			common.SysError(fmt.Sprintf("ark asset register failed: user_id=%d file=%s err=%v", userId, storedFileName, arkErr))
+		}
+	} else if system_setting.ArkAssetAccessKey != "" && system_setting.ArkAssetSecretKey != "" {
+		common.SysError(fmt.Sprintf("ark asset registration skipped: ServerAddress is localhost/empty; configure a public ServerAddress to enable Ark asset registration (user_id=%d)", userId))
 	}
 
 	arkStatus := ""
@@ -172,6 +177,8 @@ func UploadUserAsset(c *gin.Context) {
 		ArkStatus:   arkStatus,
 	}
 	if err := asset.Insert(); err != nil {
+		// Clean up the disk file to avoid an orphaned file without a DB record.
+		_ = os.Remove(dstPath)
 		common.ApiError(c, err)
 		return
 	}
