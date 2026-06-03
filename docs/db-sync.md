@@ -5,6 +5,12 @@
 - 本地容器名：`postgres`（`docker-compose.yml`）
 - 生产服务器：`root@114.215.172.94`，目录：`/var/www/html/new-api-rh`
 
+> **安全提示**：所有 SSH 凭据必须通过环境变量或 SSH 密钥提供，**严禁**在脚本、命令行或文档中明文硬编码密码。推荐使用 `ssh-copy-id` 配置密钥登录。如必须使用密码，请在当前 shell 临时导出 `SSHPASS`（不要写入 `.bashrc`、不要提交到 git）：
+>
+> ```bash
+> read -rs -p "Production SSH password: " SSHPASS && export SSHPASS
+> ```
+
 ---
 
 ## 第一步：导出本地数据库
@@ -23,9 +29,16 @@ docker exec postgres pg_dump -U root -d new-api \
 
 ## 第二步：上传到生产服务器
 
+推荐使用 SSH 密钥：
+
 ```bash
-sshpass -p '***REMOVED***' scp \
-  -o StrictHostKeyChecking=no \
+scp ./local_backup_*.sql root@114.215.172.94:/tmp/db_import.sql
+```
+
+若必须使用密码，从环境变量读取（`-e` 表示从 `$SSHPASS` 读取）：
+
+```bash
+sshpass -e scp -o StrictHostKeyChecking=no \
   ./local_backup_*.sql \
   root@114.215.172.94:/tmp/db_import.sql
 ```
@@ -37,7 +50,9 @@ sshpass -p '***REMOVED***' scp \
 SSH 登录生产服务器：
 
 ```bash
-sshpass -p '***REMOVED***' ssh -o StrictHostKeyChecking=no root@114.215.172.94
+ssh root@114.215.172.94
+# 或使用环境变量中的密码：
+# sshpass -e ssh -o StrictHostKeyChecking=no root@114.215.172.94
 ```
 
 执行以下命令：
@@ -66,15 +81,27 @@ docker compose restart new-api
 
 ## 一键脚本（本地执行）
 
+脚本从环境变量读取凭据，不在源码中硬编码。运行前请先 `export SSHPASS=...`，或配置 SSH 密钥后删除 `sshpass` 调用。
+
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVER="root@114.215.172.94"
-PASS="***REMOVED***"
-SSH="sshpass -p ${PASS} ssh -o StrictHostKeyChecking=no"
-SCP="sshpass -p ${PASS} scp -o StrictHostKeyChecking=no"
+SERVER="${PROD_SERVER:-root@114.215.172.94}"
 BACKUP="./db_sync_$(date +%Y%m%d_%H%M%S).sql"
+
+# 凭据：优先使用 SSH 密钥；若需密码登录，请通过环境变量 SSHPASS 提供
+if [[ -n "${SSHPASS:-}" ]]; then
+  export SSHPASS
+  SSH="sshpass -e ssh -o StrictHostKeyChecking=no"
+  SCP="sshpass -e scp -o StrictHostKeyChecking=no"
+else
+  SSH="ssh"
+  SCP="scp"
+fi
+
+cleanup() { unset SSHPASS; rm -f "$BACKUP"; }
+trap cleanup EXIT
 
 echo "[1/4] 导出本地数据库..."
 docker exec postgres pg_dump -U root -d new-api --no-owner --no-acl > "$BACKUP"
@@ -95,7 +122,6 @@ echo "[4/4] 重启生产应用..."
 $SSH "$SERVER" "cd /var/www/html/new-api-rh && docker compose restart new-api"
 
 echo "同步完成！"
-rm -f "$BACKUP"
 ```
 
 ---
@@ -108,3 +134,4 @@ rm -f "$BACKUP"
 | 只同步特定表 | `pg_dump` 加 `-t table_name` 参数 |
 | 增量同步 | 不支持，每次均为全量覆盖 |
 | 同步前确认生产无活跃连接 | 可用 `docker compose stop new-api` 先停应用再操作 |
+| 凭据管理 | 严禁硬编码；使用 SSH 密钥或 `SSHPASS` 环境变量；切勿提交到 git |
