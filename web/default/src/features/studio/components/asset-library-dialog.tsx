@@ -300,9 +300,13 @@ function AssetCard({
       </div>
 
       {/* Ark status badge — shown in top-right corner of thumbnail */}
-      {asset.ark_asset_id && asset.ark_status !== 'Active' && (
+      {asset.ark_asset_id && (
         <div className='absolute top-1 right-1'>
-          {asset.ark_status === 'Failed' ? (
+          {asset.ark_status === 'Active' ? (
+            <span className='rounded px-1.5 py-0.5 text-[10px] font-medium bg-green-500/80 text-white'>
+              {t('Active')}
+            </span>
+          ) : asset.ark_status === 'Failed' ? (
             <span className='rounded px-1.5 py-0.5 text-[10px] font-medium bg-destructive text-destructive-foreground'>
               {t('Review failed')}
             </span>

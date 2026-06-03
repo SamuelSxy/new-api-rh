@@ -52,7 +52,7 @@ export function StudioFormFields({
 
   const handleAssetSelect = (asset: UserAsset) => {
     if (!assetLibraryField) return
-    const submitUrl = asset.ark_asset_uri || asset.source_url
+    const submitUrl = asset.ark_asset_id ? `asset://${asset.ark_asset_id}` : asset.source_url
     const previewUrl = asset.source_url
     const fieldDef = schema.fields.find((f) => f.key === assetLibraryField.key)
     if (fieldDef?.type === 'image_upload') {
