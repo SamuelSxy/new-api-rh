@@ -23,13 +23,6 @@ const (
 	arkAssetPath    = "/"
 )
 
-func arkHostForRegion(region string) string {
-	if region == "" || region == "cn-beijing" {
-		return arkAssetHost
-	}
-	return fmt.Sprintf("ark.%s.volcengineapi.com", region)
-}
-
 func arkHmacSHA256(key []byte, data string) []byte {
 	h := hmac.New(sha256.New, key)
 	h.Write([]byte(data))
@@ -107,7 +100,6 @@ func arkBuildHeaders(accessKey, secretKey, region, host, action, bodyStr string)
 
 	headers := http.Header{}
 	headers.Set("Content-Type", "application/json")
-	headers.Set("Host", host)
 	headers.Set("X-Content-Sha256", xContentSHA256)
 	headers.Set("X-Date", xDate)
 	headers.Set("Authorization", authorization)
@@ -116,17 +108,17 @@ func arkBuildHeaders(accessKey, secretKey, region, host, action, bodyStr string)
 }
 
 type arkCreateAssetRequest struct {
-	Name        string `json:"Name"`
-	GroupId     string `json:"GroupId"`
-	URL         string `json:"URL"`
-	AssetType   string `json:"AssetType"` // Image | Video
-	ProjectName string `json:"ProjectName"`
+	Name         string `json:"Name"`
+	AssetGroupId string `json:"GroupId"`
+	Url          string `json:"URL"`
+	AssetType    string `json:"AssetType"` // Image | Video
+	ProjectName  string `json:"ProjectName"`
 }
 
-// arkCreateAssetResult is the Result payload returned by the CreateAsset API.
-// Ref: https://www.volcengine.com/docs/82379/2333565
-type arkCreateAssetResult struct {
-	Id string `json:"Id"` // e.g. "asset-20260318071009-xxxxx"
+type arkAssetItem struct {
+	AssetId  string `json:"Id"`
+	AssetUri string `json:"AssetUri"`
+	Status   string `json:"Status"`
 }
 
 type arkCreateAssetResponse struct {
@@ -137,7 +129,95 @@ type arkCreateAssetResponse struct {
 			Message string `json:"Message"`
 		} `json:"Error,omitempty"`
 	} `json:"ResponseMetadata"`
-	Result *arkCreateAssetResult `json:"Result"`
+	Result *arkAssetItem `json:"Result"`
+}
+
+type arkGetAssetRequest struct {
+	AssetId     string `json:"Id"`
+	ProjectName string `json:"ProjectName,omitempty"`
+}
+
+type arkGetAssetResponse struct {
+	ResponseMetadata struct {
+		RequestId string `json:"RequestId"`
+		Error     *struct {
+			Code    string `json:"Code"`
+			Message string `json:"Message"`
+		} `json:"Error,omitempty"`
+	} `json:"ResponseMetadata"`
+	Result *arkAssetItem `json:"Result"`
+}
+
+// ArkGetAssetStatus queries the status of a registered asset in the Volcengine Ark asset system.
+func ArkGetAssetStatus(assetId, projectName string) (string, error) {
+	accessKey := system_setting.ArkAssetAccessKey
+	secretKey := system_setting.ArkAssetSecretKey
+	region := system_setting.ArkAssetRegion
+	if region == "" {
+		region = "cn-beijing"
+	}
+
+	if accessKey == "" || secretKey == "" {
+		return "", fmt.Errorf("ark_asset: credentials not configured")
+	}
+
+	reqBody := arkGetAssetRequest{
+		AssetId:     assetId,
+		ProjectName: projectName,
+	}
+	bodyBytes, err := common.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("ark_asset: marshal request: %w", err)
+	}
+	bodyStr := string(bodyBytes)
+
+	host := arkAssetHost
+	if region != "cn-beijing" {
+		host = fmt.Sprintf("ark.%s.volcengineapi.com", region)
+	}
+
+	headers, queryStr := arkBuildHeaders(accessKey, secretKey, region, host, "GetAsset", bodyStr)
+
+	reqURL := fmt.Sprintf("https://%s%s?%s", host, arkAssetPath, queryStr)
+	httpReq, err := http.NewRequest(http.MethodPost, reqURL, strings.NewReader(bodyStr))
+	if err != nil {
+		return "", fmt.Errorf("ark_asset: create request: %w", err)
+	}
+	httpReq.Host = host
+	for k, vs := range headers {
+		for _, v := range vs {
+			httpReq.Header.Set(k, v)
+		}
+	}
+
+	resp, err := GetHttpClient().Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("ark_asset: do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("ark_asset: read response: %w", err)
+	}
+
+	var arkResp arkGetAssetResponse
+	if err := common.Unmarshal(respBytes, &arkResp); err != nil {
+		return "", fmt.Errorf("ark_asset: unmarshal response: %w", err)
+	}
+
+	if arkResp.ResponseMetadata.Error != nil {
+		return "", fmt.Errorf("ark_asset: api error %s: %s",
+			arkResp.ResponseMetadata.Error.Code,
+			arkResp.ResponseMetadata.Error.Message,
+		)
+	}
+
+	if arkResp.Result == nil {
+		return "", fmt.Errorf("ark_asset: empty result")
+	}
+
+	return arkResp.Result.Status, nil
 }
 
 // ArkCreateAsset registers an asset URL in the Volcengine Ark asset system.
@@ -155,17 +235,12 @@ func ArkCreateAsset(name, assetUrl, assetType, projectName, groupId string) (ass
 		return "", assetUrl, nil
 	}
 
-	// GroupId is required by Ark API — skip with error if not configured
-	if groupId == "" {
-		return "", assetUrl, fmt.Errorf("ark_asset: ArkAssetGroupId is not configured in system settings")
-	}
-
 	reqBody := arkCreateAssetRequest{
-		Name:        name,
-		GroupId:     groupId,
-		URL:         assetUrl,
-		AssetType:   assetType,
-		ProjectName: projectName,
+		Name:         name,
+		AssetGroupId: groupId,
+		Url:          assetUrl,
+		AssetType:    assetType,
+		ProjectName:  projectName,
 	}
 	bodyBytes, err := common.Marshal(reqBody)
 	if err != nil {
@@ -173,7 +248,10 @@ func ArkCreateAsset(name, assetUrl, assetType, projectName, groupId string) (ass
 	}
 	bodyStr := string(bodyBytes)
 
-	host := arkHostForRegion(region)
+	host := arkAssetHost
+	if region != "cn-beijing" {
+		host = fmt.Sprintf("ark.%s.volcengineapi.com", region)
+	}
 
 	headers, queryStr := arkBuildHeaders(accessKey, secretKey, region, host, "CreateAsset", bodyStr)
 
@@ -182,6 +260,7 @@ func ArkCreateAsset(name, assetUrl, assetType, projectName, groupId string) (ass
 	if err != nil {
 		return "", assetUrl, fmt.Errorf("ark_asset: create request: %w", err)
 	}
+	httpReq.Host = host
 	for k, vs := range headers {
 		for _, v := range vs {
 			httpReq.Header.Set(k, v)
@@ -212,98 +291,15 @@ func ArkCreateAsset(name, assetUrl, assetType, projectName, groupId string) (ass
 	}
 
 	if arkResp.Result == nil {
+		// Log raw response to help diagnose unexpected API structures
+		common.SysLog(fmt.Sprintf("ark_asset: empty result, raw response: %s", string(respBytes)))
 		return "", assetUrl, fmt.Errorf("ark_asset: empty result")
 	}
 
-	// URI format per docs: asset://<asset_ID>
-	return arkResp.Result.Id, "asset://" + arkResp.Result.Id, nil
-}
-
-// --- GetAsset ---
-
-type arkGetAssetRequest struct {
-	Id          string `json:"Id"`
-	ProjectName string `json:"ProjectName,omitempty"`
-}
-
-// arkGetAssetResult mirrors the Result block returned by the GetAsset API.
-type arkGetAssetResult struct {
-	Id     string `json:"Id"`
-	Status string `json:"Status"` // Processing | Active | Failed
-}
-
-type arkGetAssetResponse struct {
-	ResponseMetadata struct {
-		RequestId string `json:"RequestId"`
-		Error     *struct {
-			Code    string `json:"Code"`
-			Message string `json:"Message"`
-		} `json:"Error,omitempty"`
-	} `json:"ResponseMetadata"`
-	Result *arkGetAssetResult `json:"Result"`
-}
-
-// ArkGetAssetStatus queries the Ark GetAsset API and returns the current Status
-// string ("Processing", "Active", or "Failed").
-func ArkGetAssetStatus(assetId, projectName string) (status string, err error) {
-	accessKey := system_setting.ArkAssetAccessKey
-	secretKey := system_setting.ArkAssetSecretKey
-	region := system_setting.ArkAssetRegion
-	if region == "" {
-		region = "cn-beijing"
+	if arkResp.Result.AssetId == "" {
+		// Log raw response to help diagnose unexpected API structures
+		common.SysLog(fmt.Sprintf("ark_asset: empty AssetId, raw response: %s", string(respBytes)))
 	}
 
-	if accessKey == "" || secretKey == "" {
-		return "", fmt.Errorf("ark_asset: credentials not configured")
-	}
-
-	reqBody := arkGetAssetRequest{Id: assetId, ProjectName: projectName}
-	bodyBytes, err := common.Marshal(reqBody)
-	if err != nil {
-		return "", fmt.Errorf("ark_asset: marshal get request: %w", err)
-	}
-	bodyStr := string(bodyBytes)
-
-	host := arkHostForRegion(region)
-	headers, queryStr := arkBuildHeaders(accessKey, secretKey, region, host, "GetAsset", bodyStr)
-
-	reqURL := fmt.Sprintf("https://%s%s?%s", host, arkAssetPath, queryStr)
-	httpReq, err := http.NewRequest(http.MethodPost, reqURL, strings.NewReader(bodyStr))
-	if err != nil {
-		return "", fmt.Errorf("ark_asset: create get request: %w", err)
-	}
-	for k, vs := range headers {
-		for _, v := range vs {
-			httpReq.Header.Set(k, v)
-		}
-	}
-
-	resp, err := GetHttpClient().Do(httpReq)
-	if err != nil {
-		return "", fmt.Errorf("ark_asset: do get request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("ark_asset: read get response: %w", err)
-	}
-
-	var arkResp arkGetAssetResponse
-	if err := common.Unmarshal(respBytes, &arkResp); err != nil {
-		return "", fmt.Errorf("ark_asset: unmarshal get response: %w", err)
-	}
-
-	if arkResp.ResponseMetadata.Error != nil {
-		return "", fmt.Errorf("ark_asset: get api error %s: %s",
-			arkResp.ResponseMetadata.Error.Code,
-			arkResp.ResponseMetadata.Error.Message,
-		)
-	}
-
-	if arkResp.Result == nil {
-		return "", fmt.Errorf("ark_asset: empty get result")
-	}
-
-	return arkResp.Result.Status, nil
+	return arkResp.Result.AssetId, arkResp.Result.AssetUri, nil
 }
