@@ -1,8 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
+import { Activity, Layers, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSystemConfig } from '@/hooks/use-system-config'
-import { Button } from '@/components/ui/button'
 import { HeroTerminalDemo } from '../hero-terminal-demo'
 
 interface HeroProps {
@@ -12,84 +10,128 @@ interface HeroProps {
 
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
-  const { systemName } = useSystemConfig()
 
   return (
-    <section className='relative z-10 flex flex-col items-center overflow-hidden px-6 pt-28 pb-16 md:pt-36 md:pb-24'>
-      {/* Radial gradient background */}
+    <section className='relative overflow-hidden bg-[#171717] px-6 pt-28 pb-20 md:pt-36'>
+      {/* Background glow */}
       <div
         aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
+        className='pointer-events-none absolute inset-0 -z-10'
         style={{
           background: [
-            'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 35% at 40% 80%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 50% 40% at 15% 60%, rgba(128,255,0,0.05) 0%, transparent 60%)',
+            'radial-gradient(ellipse 40% 30% at 75% 35%, rgba(0,200,209,0.05) 0%, transparent 60%)',
           ].join(', '),
         }}
       />
-      {/* Grid pattern */}
-      <div
-        aria-hidden
-        className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_30%,black_20%,transparent_100%)] bg-[size:4rem_4rem] opacity-[0.08]'
-      />
 
-      <div className='flex max-w-3xl flex-col items-center text-center'>
-        <h1
-          className='landing-animate-fade-up text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'
-          style={{ animationDelay: '0ms' }}
-        >
-          {t('Unified API Gateway for')}
-          <br />
-          <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('All Your AI Models')}
-          </span>
-        </h1>
-        <p
-          className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-lg text-base leading-relaxed opacity-0 md:text-lg'
-          style={{ animationDelay: '80ms' }}
-        >
-          {systemName}{' '}
-          {t(
-            'is an open-source AI API gateway for self-hosted deployments. Connect multiple upstream services, manage models, keys, quotas, logs, and routing policies in one place.'
-          )}
-        </p>
+      <div className='mx-auto max-w-7xl'>
+        {/* Two-column layout */}
+        <div className='grid items-start gap-12 lg:grid-cols-2 lg:gap-16'>
+          {/* Left: Feature highlights */}
+          <div className='flex flex-col justify-center gap-10 lg:py-8'>
+            {/* Feature 01 */}
+            <div className='landing-animate-fade-up flex flex-col gap-3' style={{ animationDelay: '0ms' }}>
+              <div className='flex items-center gap-3'>
+                <div className='flex size-14 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]'>
+                  <Layers className='size-6 text-white' strokeWidth={1.5} />
+                </div>
+                <div className='flex flex-wrap items-baseline gap-2'>
+                  <span className='text-2xl font-bold text-white md:text-3xl'>
+                    {t('50+ Model Providers')}
+                  </span>
+                  <span className='text-2xl font-bold text-white/30 md:text-3xl'>
+                    {t('No Markup')}
+                  </span>
+                </div>
+              </div>
+              <p className='pl-[68px] text-base text-[#808080] md:text-lg'>
+                {t('Official channels · Stable long-term pricing')}
+              </p>
+            </div>
+
+            {/* Feature 02 */}
+            <div className='landing-animate-fade-up flex flex-col gap-3 opacity-0' style={{ animationDelay: '100ms' }}>
+              <div className='flex items-center gap-3'>
+                <div className='flex size-14 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]'>
+                  <Zap className='size-6 text-white' strokeWidth={1.5} />
+                </div>
+                <span className='text-2xl font-bold text-white md:text-3xl'>
+                  {t('Unified API Management')}
+                </span>
+              </div>
+              <div className='flex flex-wrap gap-3 pl-[68px]'>
+                {['OpenAI', 'Claude', 'Gemini', 'DeepSeek', 'Qwen', 'Llama'].map((tag) => (
+                  <span
+                    key={tag}
+                    className='rounded-full border border-white/10 bg-white/[0.05] px-5 py-1.5 text-sm text-white/70'
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Feature 03 */}
+            <div className='landing-animate-fade-up flex flex-col gap-3 opacity-0' style={{ animationDelay: '200ms' }}>
+              <div className='flex items-center gap-3'>
+                <div className='flex size-14 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]'>
+                  <Activity className='size-6 text-white' strokeWidth={1.5} />
+                </div>
+                <span className='text-2xl font-bold text-white md:text-3xl'>
+                  {t('High Concurrency')}
+                </span>
+              </div>
+              <p className='pl-[68px] text-base text-[#808080] md:text-lg'>
+                {t('Supports 1000+ concurrent requests · No waiting')}
+              </p>
+            </div>
+          </div>
+
+          {/* Right: API Demo */}
+          <div
+            className='landing-animate-fade-up overflow-hidden rounded-3xl opacity-0'
+            style={{ animationDelay: '120ms' }}
+          >
+            <HeroTerminalDemo />
+          </div>
+        </div>
+
+        {/* Action buttons */}
         <div
-          className='landing-animate-fade-up mt-8 flex items-center gap-3 opacity-0'
-          style={{ animationDelay: '160ms' }}
+          className='landing-animate-fade-up mt-14 flex flex-wrap items-center gap-4 opacity-0'
+          style={{ animationDelay: '300ms' }}
         >
           {props.isAuthenticated ? (
-            <Button className='group rounded-lg' asChild>
-              <Link to='/dashboard'>
-                {t('Go to Dashboard')}
-                <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-              </Link>
-            </Button>
+            <Link
+              to='/dashboard'
+              className='inline-flex items-center rounded-full bg-gradient-to-b from-[#80FF00] to-[#FBFF00] px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90'
+            >
+              {t('Go to Dashboard')}
+            </Link>
           ) : (
             <>
-              <Button className='group rounded-lg' asChild>
-                <Link to='/sign-up'>
-                  {t('Get Started')}
-                  <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-                </Link>
-              </Button>
-              <Button
-                variant='outline'
-                className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
-                asChild
+              <Link
+                to='/sign-up'
+                className='inline-flex items-center rounded-full bg-gradient-to-b from-[#80FF00] to-[#FBFF00] px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90'
               >
-                <Link to='/pricing'>{t('View Pricing')}</Link>
-              </Button>
+                {t('Get Started')}
+              </Link>
+              <Link
+                to='/pricing'
+                className='inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm text-white transition-colors hover:bg-white/[0.08]'
+              >
+                {t('View Pricing')}
+              </Link>
+              <Link
+                to='/about'
+                className='inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm text-white transition-colors hover:bg-white/[0.08]'
+              >
+                {t('About')}
+              </Link>
             </>
           )}
         </div>
-      </div>
-
-      <div
-        className='landing-animate-fade-up w-full opacity-0'
-        style={{ animationDelay: '300ms' }}
-      >
-        <HeroTerminalDemo />
       </div>
     </section>
   )

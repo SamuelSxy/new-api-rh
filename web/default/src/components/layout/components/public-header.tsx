@@ -93,7 +93,7 @@ export function PublicHeader(props: PublicHeaderProps) {
             className={cn(
               'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
               scrolled
-                ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
+                ? 'bg-background/80 ring-white/10 dark:bg-[#111]/80 h-12 rounded-full pr-1.5 pl-4 shadow-[0_2px_24px_-6px_rgba(0,0,0,0.3)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_24px_-6px_rgba(0,0,0,0.6)]'
                 : 'h-16 px-2'
             )}
           >
@@ -143,9 +143,9 @@ export function PublicHeader(props: PublicHeaderProps) {
                     key={i}
                     to={link.href}
                     className={cn(
-                      'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                      'rounded-full px-3 py-1.5 text-[13px] font-medium transition-all duration-200',
                       isActive
-                        ? 'text-foreground'
+                        ? 'bg-gradient-to-b from-[#80FF00] to-[#FBFF00] text-black'
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >

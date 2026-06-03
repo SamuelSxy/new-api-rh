@@ -1,5 +1,7 @@
 export { CTA } from './sections/cta'
 export { Features } from './sections/features'
+export { Gallery } from './sections/gallery'
 export { Hero } from './sections/hero'
+export { HomeFooter } from './sections/home-footer'
 export { HowItWorks } from './sections/how-it-works'
 export { Stats } from './sections/stats'

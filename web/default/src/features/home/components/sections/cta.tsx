@@ -1,7 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
 import { AnimateInView } from '@/components/animate-in-view'
 
 interface CTAProps {
@@ -17,7 +15,7 @@ export function CTA(props: CTAProps) {
   }
 
   return (
-    <section className='relative z-10 overflow-hidden px-6 py-24 md:py-32'>
+    <section className='relative z-10 overflow-hidden bg-[#171717] px-6 py-24 md:py-32'>
       {/* Gradient mesh background */}
       <div
         aria-hidden
@@ -34,32 +32,31 @@ export function CTA(props: CTAProps) {
         className='mx-auto max-w-2xl text-center'
         animation='scale-in'
       >
-        <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-4xl'>
+        <h2 className='text-2xl leading-tight font-bold tracking-tight text-white md:text-4xl'>
           {t('Ready to simplify')}
           <br />
-          <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
+          <span className='bg-gradient-to-b from-[#80FF00] to-[#FBFF00] bg-clip-text text-transparent'>
             {t('your AI integration?')}
           </span>
         </h2>
-        <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
+        <p className='mx-auto mt-5 max-w-md text-sm leading-relaxed text-[#808080] md:text-base'>
           {t(
             'Deploy your own gateway and start routing requests through your configured upstream services.'
           )}
         </p>
-        <div className='mt-8 flex items-center justify-center gap-3'>
-          <Button className='group rounded-lg' asChild>
-            <Link to='/sign-up'>
-              {t('Get Started')}
-              <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-            </Link>
-          </Button>
-          <Button
-            variant='outline'
-            className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
-            asChild
+        <div className='mt-8 flex items-center justify-center gap-4'>
+          <Link
+            to='/sign-up'
+            className='inline-flex items-center rounded-full bg-gradient-to-b from-[#80FF00] to-[#FBFF00] px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90'
           >
-            <Link to='/pricing'>{t('View Pricing')}</Link>
-          </Button>
+            {t('Get Started')}
+          </Link>
+          <Link
+            to='/pricing'
+            className='inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm text-white transition-colors hover:bg-white/[0.08]'
+          >
+            {t('View Pricing')}
+          </Link>
         </div>
       </AnimateInView>
     </section>
