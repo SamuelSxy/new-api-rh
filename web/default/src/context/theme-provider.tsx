@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, useMemo } from 'react'
-import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
+import { setCookie } from '@/lib/cookies'
 
 type Theme = 'dark' | 'light' | 'system'
 type ResolvedTheme = Exclude<Theme, 'system'>
 
-const DEFAULT_THEME = 'system'
+const DEFAULT_THEME = 'dark'
 const THEME_COOKIE_NAME = 'vite-ui-theme'
 const THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
 
@@ -38,9 +38,8 @@ export function ThemeProvider({
   storageKey = THEME_COOKIE_NAME,
   ...props
 }: ThemeProviderProps) {
-  const [theme, _setTheme] = useState<Theme>(
-    () => (getCookie(storageKey) as Theme) || defaultTheme
-  )
+  // Theme is locked to dark regardless of stored cookie value
+  const [theme, _setTheme] = useState<Theme>('dark')
 
   // Optimized: Memoize the resolved theme calculation to prevent unnecessary re-computations
   const resolvedTheme = useMemo((): ResolvedTheme => {
@@ -51,6 +50,11 @@ export function ThemeProvider({
     }
     return theme as ResolvedTheme
   }, [theme])
+
+  // Persist dark lock on mount
+  useEffect(() => {
+    setCookie(storageKey, 'dark', THEME_COOKIE_MAX_AGE)
+  }, [storageKey])
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -75,14 +79,16 @@ export function ThemeProvider({
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [theme, resolvedTheme])
 
-  const setTheme = (theme: Theme) => {
-    setCookie(storageKey, theme, THEME_COOKIE_MAX_AGE)
-    _setTheme(theme)
+  // Theme is locked to dark — ignore external theme switching requests
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const setTheme = (_theme: Theme) => {
+    setCookie(storageKey, 'dark', THEME_COOKIE_MAX_AGE)
+    _setTheme('dark')
   }
 
   const resetTheme = () => {
-    removeCookie(storageKey)
-    _setTheme(DEFAULT_THEME)
+    setCookie(storageKey, 'dark', THEME_COOKIE_MAX_AGE)
+    _setTheme('dark')
   }
 
   const contextValue = {

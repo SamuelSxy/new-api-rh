@@ -1,4 +1,5 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useStatus } from '@/hooks/use-status'
 import { AuthLayout } from '../auth-layout'
@@ -8,6 +9,19 @@ import { SignUpForm } from './components/sign-up-form'
 export function SignUp() {
   const { t } = useTranslation()
   const { status } = useStatus()
+  const navigate = useNavigate()
+
+  const registerEnabled = status?.register_enabled ?? true
+
+  useEffect(() => {
+    if (status && !registerEnabled) {
+      navigate({ to: '/sign-in' })
+    }
+  }, [status, registerEnabled, navigate])
+
+  if (status && !registerEnabled) {
+    return null
+  }
 
   return (
     <AuthLayout>

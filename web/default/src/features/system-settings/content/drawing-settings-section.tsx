@@ -18,6 +18,7 @@ import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const drawingSchema = z.object({
+  StudioEnabled: z.boolean(),
   DrawingEnabled: z.boolean(),
   MjNotifyEnabled: z.boolean(),
   MjAccountFilterEnabled: z.boolean(),
@@ -61,6 +62,13 @@ export function DrawingSettingsSection({
     label: string
     description: string
   }> = [
+    {
+      name: 'StudioEnabled',
+      label: t('Enable Studio'),
+      description: t(
+        'Show or hide the Studio (creative console) feature for all users.'
+      ),
+    },
     {
       name: 'DrawingEnabled',
       label: t('Enable drawing features'),

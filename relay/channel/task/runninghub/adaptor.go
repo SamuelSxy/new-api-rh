@@ -148,6 +148,12 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		return nil
 	}
 
+	// /v1/images/generations or /v1/images/edits: parse as standard OpenAI ImageRequest.
+	// Users send the standard OpenAI format; we convert to TaskSubmitReq for RunningHub.
+	if strings.Contains(path, "/images/generations") || strings.Contains(path, "/images/edits") {
+		return a.validateImageRequest(c, info)
+	}
+
 	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
 		return taskErr
 	}
@@ -457,6 +463,85 @@ func isInternalRuntimeKey(key string) bool {
 	default:
 		return false
 	}
+}
+
+
+// validateImageRequest parses a standard OpenAI /v1/images/generations or /v1/images/edits
+// request body and converts it to a RunningHub TaskSubmitReq.
+// Standard OpenAI fields are mapped as follows:
+//   size     -> TaskSubmitReq.Size and metadata["size"]
+//   quality  -> metadata["quality"]
+//   style    -> metadata["style"]
+//   image(s) -> TaskSubmitReq.Images  (for image editing workflows)
+//   Extra    -> metadata (any unknown fields pass through as-is)
+func (a *TaskAdaptor) validateImageRequest(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+var imgReq dto.ImageRequest
+if err := common.UnmarshalBodyReusable(c, &imgReq); err != nil {
+return service.TaskErrorWrapper(errors.Wrap(err, "parse_image_request_failed"), "invalid_request", http.StatusBadRequest)
+}
+if strings.TrimSpace(imgReq.Prompt) == "" {
+return service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest)
+}
+
+metadata := map[string]interface{}{}
+
+if imgReq.Size != "" {
+metadata["size"] = imgReq.Size
+}
+if imgReq.Quality != "" {
+metadata["quality"] = imgReq.Quality
+}
+if len(imgReq.Style) > 0 {
+var style interface{}
+if err := common.Unmarshal(imgReq.Style, &style); err == nil {
+metadata["style"] = style
+}
+}
+
+// Forward any extra / unknown fields directly into metadata so users can pass
+// workflow-specific parameters (e.g., resolution, api_path, steps) without
+// knowing about RunningHub metadata structure.
+for k, v := range imgReq.Extra {
+var val interface{}
+if err := common.Unmarshal(v, &val); err == nil {
+metadata[k] = val
+}
+}
+
+taskReq := relaycommon.TaskSubmitReq{
+Model:    imgReq.Model,
+Prompt:   imgReq.Prompt,
+Size:     imgReq.Size,
+Metadata: metadata,
+}
+
+// Parse image field for image-edit workflows.
+if len(imgReq.Image) > 0 {
+var imageVal interface{}
+if err := common.Unmarshal(imgReq.Image, &imageVal); err == nil {
+switch v := imageVal.(type) {
+case string:
+if v != "" {
+taskReq.Images = []string{v}
+}
+case []interface{}:
+for _, img := range v {
+if s, ok := img.(string); ok && s != "" {
+taskReq.Images = append(taskReq.Images, s)
+}
+}
+}
+}
+}
+
+// api_path in metadata overrides the upstream model name (workflow path).
+if apiPath, ok := metadata["api_path"].(string); ok && strings.TrimSpace(apiPath) != "" {
+info.UpstreamModelName = strings.TrimSpace(apiPath)
+}
+
+info.Action = constant.TaskActionImageGenerate
+c.Set("task_request", taskReq)
+return nil
 }
 
 func buildRunningHubURL(baseURL, path string) string {

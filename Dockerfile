@@ -28,8 +28,11 @@ ENV GOEXPERIMENT=greenteagc
 
 WORKDIR /build
 
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
+    && apk add --no-cache git
+
 ADD go.mod go.sum ./
-ENV GOPROXY=https://goproxy.cn,direct
+ENV GOPROXY=https://goproxy.io|https://goproxy.cn|direct
 RUN go mod download
 
 COPY . .
@@ -37,12 +40,7 @@ COPY --from=builder /build/dist ./web/default/dist
 COPY --from=builder-classic /build/dist ./web/classic/dist
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
-FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata wget \
-    && rm -rf /var/lib/apt/lists/* \
-    && update-ca-certificates
+FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601
 
 COPY --from=builder2 /build/new-api /
 EXPOSE 3000

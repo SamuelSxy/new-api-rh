@@ -112,7 +112,15 @@ export function HomeFooter() {
           <p className='text-xs text-white/25'>
             &copy; {currentYear} {displayName} {t('All Rights Reserved.')}
           </p>
-          <div className='flex gap-4'>
+          <div className='flex flex-wrap items-center gap-4'>
+            <a
+              href='https://beian.miit.gov.cn'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-xs text-white/40 transition-colors hover:text-white/70'
+            >
+              鲁ICP备2026028251号-1
+            </a>
             <Link
               to='/privacy-policy'
               className='text-xs text-white/25 transition-colors hover:text-white/50'

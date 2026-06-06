@@ -95,6 +95,7 @@ const CONTENT_SECTIONS = [
     build: (settings: ContentSettings) => (
       <DrawingSettingsSection
         defaultValues={{
+          StudioEnabled: settings.StudioEnabled,
           DrawingEnabled: settings.DrawingEnabled,
           MjNotifyEnabled: settings.MjNotifyEnabled,
           MjAccountFilterEnabled: settings.MjAccountFilterEnabled,

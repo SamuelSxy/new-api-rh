@@ -81,6 +81,7 @@ func GetStatus(c *gin.Context) {
 		"enable_batch_update":           common.BatchUpdateEnabled,
 		"enable_drawing":                common.DrawingEnabled,
 		"enable_task":                   common.TaskEnabled,
+		"enable_studio":                 common.StudioEnabled,
 		"enable_data_export":            common.DataExportEnabled,
 		"data_export_default_time":      common.DataExportDefaultTime,
 		"default_collapse_sidebar":      common.DefaultCollapseSidebar,
@@ -118,6 +119,8 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		"register_enabled":          common.RegisterEnabled,
+		"password_register_enabled": common.PasswordRegisterEnabled,
 	}
 
 	// 根据启用状态注入可选内容

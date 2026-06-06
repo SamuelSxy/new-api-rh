@@ -87,6 +87,7 @@ export function SignUpForm({
   const oauthRegisterEnabled =
     status?.oauth_register_enabled ??
     status?.data?.oauth_register_enabled ??
+    status?.register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
 

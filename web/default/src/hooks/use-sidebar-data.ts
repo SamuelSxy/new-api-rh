@@ -1,4 +1,4 @@
-import {
+﻿import {
   LayoutDashboard,
   Activity,
   Key,
@@ -20,9 +20,12 @@ import {
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
+import { useStatus } from '@/hooks/use-status'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const studioEnabled = status?.enable_studio !== false
 
   return {
     workspaces: [
@@ -48,11 +51,15 @@ export function useSidebarData(): SidebarData {
             icon: MessageSquare,
             type: 'chat-presets',
           },
-          {
-            title: t('Studio'),
-            url: '/studio',
-            icon: Clapperboard,
-          },
+          ...(studioEnabled
+            ? [
+                {
+                  title: t('Studio'),
+                  url: '/studio',
+                  icon: Clapperboard,
+                },
+              ]
+            : []),
         ],
       },
       {
