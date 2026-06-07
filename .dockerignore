@@ -8,8 +8,8 @@ docs
 .eslintcache
 .gocache
 /web/node_modules
-web/**/node_modules
-web/**/dist
-new-api
-logs
-data
+/web/default/node_modules
+/web/default/dist
+/web/classic/node_modules
+/web/classic/dist
+!THIRD-PARTY-LICENSES.md

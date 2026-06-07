@@ -1,27 +1,41 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Music } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
-import {
-  taskActionMapper,
-  taskStatusMapper,
-} from '../../lib/mappers'
+import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
 import type { TaskLog } from '../../types'
-import { getLogAvatarStyle } from '../../lib/avatar-color'
-import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   AudioPreviewDialog,
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
-import { ImageDialog } from '../dialogs/image-dialog'
+import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
   createChannelColumn,
@@ -39,12 +53,6 @@ function parseTaskData(data: unknown): unknown[] {
     }
   }
   return []
-}
-
-// 通过 URL 扩展名判断是否为视频文件
-const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|avi|mkv|flv|wmv|m4v|ogv)(\?|$)/i
-function isVideoUrl(url: string | undefined | null): boolean {
-  return typeof url === 'string' && VIDEO_EXTENSIONS.test(url)
 }
 
 function AudioPreviewCell({ log }: { log: TaskLog }) {
@@ -67,7 +75,7 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
         className='group flex items-center gap-1 text-left text-xs'
         onClick={() => setOpen(true)}
       >
-        <Music className='size-3 text-muted-foreground' />
+        <Music className='text-muted-foreground size-3' />
         <span className='text-foreground leading-snug group-hover:underline'>
           {t('Click to preview audio')}
         </span>
@@ -76,31 +84,6 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
         open={open}
         onOpenChange={setOpen}
         clips={clips as AudioClip[]}
-      />
-    </>
-  )
-}
-
-function ImagePreviewCell({ imageUrl, taskId }: { imageUrl: string; taskId: string }) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-
-  return (
-    <>
-      <button
-        type='button'
-        className='group flex items-center gap-1 text-left text-xs'
-        onClick={() => setOpen(true)}
-      >
-        <span className='text-foreground leading-snug group-hover:underline'>
-          {t('Click to preview image')}
-        </span>
-      </button>
-      <ImageDialog
-        imageUrl={imageUrl}
-        taskId={taskId}
-        open={open}
-        onOpenChange={setOpen}
       />
     </>
   )
@@ -138,56 +121,49 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   ]
 
   if (isAdmin) {
-    columns.push(
-      createChannelColumn<TaskLog>({ headerLabel: t('Channel') }),
-      {
-        id: 'user',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('User')} />
-        ),
-        cell: function UserCell({ row }) {
-          const {
-            sensitiveVisible,
-            setSelectedUserId,
-            setUserInfoDialogOpen,
-          } = useUsageLogsContext()
-          const log = row.original
-          const displayName = log.username || String(log.user_id || '?')
+    columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }), {
+      id: 'user',
+      accessorFn: (row) => row.username || row.user_id,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('User')} />
+      ),
+      cell: function UserCell({ row }) {
+        const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
+          useUsageLogsContext()
+        const log = row.original
+        const displayName = log.username || String(log.user_id || '?')
 
-          return (
-            <button
-              type='button'
-              className='flex items-center gap-1.5 text-left'
-              onClick={(e) => {
-                e.stopPropagation()
-                setSelectedUserId(log.user_id)
-                setUserInfoDialogOpen(true)
-              }}
-            >
-              <Avatar className='size-6 ring-1 ring-border/60'>
-                <AvatarFallback
-                  className={cn(
-                    'text-[11px] font-semibold',
-                    !sensitiveVisible && 'bg-muted text-muted-foreground'
-                  )}
-                  style={
-                    sensitiveVisible ? getLogAvatarStyle(displayName) : undefined
-                  }
-                >
-                  {sensitiveVisible
-                    ? displayName.charAt(0).toUpperCase()
-                    : '•'}
-                </AvatarFallback>
-              </Avatar>
-              <span className='text-muted-foreground truncate text-sm hover:underline'>
-                {sensitiveVisible ? displayName : '••••'}
-              </span>
-            </button>
-          )
-        },
-        meta: { label: t('User'), mobileHidden: true },
-      }
-    )
+        return (
+          <button
+            type='button'
+            className='flex items-center gap-1.5 text-left'
+            onClick={(e) => {
+              e.stopPropagation()
+              setSelectedUserId(log.user_id)
+              setUserInfoDialogOpen(true)
+            }}
+          >
+            <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
+              <AvatarFallback
+                className={cn(
+                  'text-[11px] font-semibold',
+                  !sensitiveVisible && 'bg-muted text-muted-foreground'
+                )}
+                style={
+                  sensitiveVisible ? getUserAvatarStyle(displayName) : undefined
+                }
+              >
+                {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
+              </AvatarFallback>
+            </Avatar>
+            <span className='text-muted-foreground truncate text-sm hover:underline'>
+              {sensitiveVisible ? displayName : '••••'}
+            </span>
+          </button>
+        )
+      },
+      meta: { label: t('User') },
+    })
   }
 
   columns.push(
@@ -208,8 +184,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               label={taskId}
               autoColor={taskId}
               size='sm'
-              showDot={false}
-              className='max-w-full truncate rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono'
+              className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
             />
             <span className='text-muted-foreground/60 truncate text-[11px]'>
               {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
@@ -239,7 +214,6 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             variant={taskStatusMapper.getVariant(status)}
             size='sm'
             copyable={false}
-            showDot
           />
         )
       },
@@ -259,9 +233,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
 
         const isSunoSuccess =
           log.platform === 'suno' && status === TASK_STATUS.SUCCESS
-        const isAudioSuccess =
-          log.action === TASK_ACTIONS.AUDIO_GENERATE && status === TASK_STATUS.SUCCESS
-        if (isSunoSuccess || isAudioSuccess) {
+        if (isSunoSuccess) {
           const data = parseTaskData(log.data)
           if (
             data.some(
@@ -281,61 +253,20 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           log.action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
           log.action === TASK_ACTIONS.REMIX_GENERATE
-        const isImageTask = log.action === TASK_ACTIONS.IMAGE_GENERATE
-        const isTextOutputTask = log.action === TASK_ACTIONS.TEXT_OUTPUT
         const isSuccess = status === TASK_STATUS.SUCCESS
-        const hasResultUrl = !!log.result_url
+        const isUrl = failReason?.startsWith('http')
 
-        if (isSuccess && isVideoTask && hasResultUrl) {
+        if (isSuccess && isVideoTask && isUrl) {
           const videoUrl = `/v1/videos/${log.task_id}/content`
           return (
             <a
               href={videoUrl}
               target='_blank'
               rel='noopener noreferrer'
-              className='text-xs text-foreground hover:underline'
+              className='text-foreground text-xs hover:underline'
             >
               {t('Click to preview video')}
             </a>
-          )
-        }
-
-        if (isSuccess && isImageTask && hasResultUrl) {
-          // 根据实际 URL 扩展名判断media 类型
-          if (isVideoUrl(log.result_url)) {
-            const videoUrl = `/v1/videos/${log.task_id}/content`
-            return (
-              <a
-                href={videoUrl}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='text-xs text-foreground hover:underline'
-              >
-                {t('Click to preview video')}
-              </a>
-            )
-          }
-          return <ImagePreviewCell imageUrl={log.result_url!} taskId={log.task_id} />
-        }
-
-        if (isSuccess && isTextOutputTask && log.result_url) {
-          return (
-            <>
-              <button
-                type='button'
-                className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
-                onClick={() => setDialogOpen(true)}
-              >
-                <span className='truncate leading-snug text-foreground group-hover:underline'>
-                  {log.result_url}
-                </span>
-              </button>
-              <FailReasonDialog
-                failReason={log.result_url}
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-              />
-            </>
           )
         }
 
