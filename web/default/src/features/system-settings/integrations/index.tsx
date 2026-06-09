@@ -3,6 +3,7 @@ import type { IntegrationSettings as IntegrationSettingsType } from '../types'
 import {
   INTEGRATIONS_DEFAULT_SECTION,
   getIntegrationsSectionContent,
+  getIntegrationsSectionMeta,
 } from './section-registry.tsx'
 
 const defaultIntegrationSettings: IntegrationSettingsType = {
@@ -79,6 +80,17 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   ArkAssetRegion: 'cn-beijing',
   ArkAssetProjectName: '',
   ArkAssetGroupId: '',
+  MediakitEnabled: false,
+  MediakitApiKey: '',
+  MediakitToolVersion: 'standard',
+  MediakitScene: 'short_series',
+  MediakitResolution: '720p',
+  TosEnabled: false,
+  TosAccessKey: '',
+  TosSecretKey: '',
+  TosRegion: 'cn-beijing',
+  TosBucket: '',
+  TosEndpoint: '',
 }
 
 export function IntegrationSettings() {
@@ -88,6 +100,7 @@ export function IntegrationSettings() {
       defaultSettings={defaultIntegrationSettings}
       defaultSection={INTEGRATIONS_DEFAULT_SECTION}
       getSectionContent={getIntegrationsSectionContent}
+      getSectionMeta={getIntegrationsSectionMeta}
     />
   )
 }

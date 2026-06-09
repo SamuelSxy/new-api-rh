@@ -43,6 +43,26 @@ var allowedVideoTypes = map[string]bool{
 	"video/x-msvideo": true,
 }
 
+// safeExtForMIME maps each allowed MIME type to a fixed, server-controlled extension.
+// This prevents attackers from storing files with dangerous extensions (e.g. .html)
+// by supplying a spoofed Content-Type header, which would allow stored-XSS via
+// ServeUserAssetFile when the browser renders the file with text/html.
+var safeExtForMIME = map[string]string{
+	"image/jpeg":      ".jpg",
+	"image/png":       ".png",
+	"image/gif":       ".gif",
+	"image/webp":      ".webp",
+	"image/bmp":       ".bmp",
+	"image/tiff":      ".tiff",
+	"image/heic":      ".heic",
+	"image/heif":      ".heif",
+	"video/mp4":       ".mp4",
+	"video/mpeg":      ".mpeg",
+	"video/quicktime": ".mov",
+	"video/webm":      ".webm",
+	"video/x-msvideo": ".avi",
+}
+
 // UploadUserAsset handles multipart file upload, stores the file and optionally
 // registers it with the Ark Asset API.
 func UploadUserAsset(c *gin.Context) {
@@ -93,39 +113,63 @@ func UploadUserAsset(c *gin.Context) {
 		name = fileHeader.Filename
 	}
 
-	ext := filepath.Ext(fileHeader.Filename)
+	ext := safeExtForMIME[contentType] // use server-controlled extension to prevent stored-XSS
 	fileUUID := uuid.New().String()
 	storedFileName := fileUUID + ext
+	tosObjectKey := fmt.Sprintf("studio-assets/%d/%s", userId, storedFileName)
 
-	userDir := filepath.Join(assetBaseDir, strconv.Itoa(userId))
-	if err := os.MkdirAll(userDir, 0755); err != nil {
-		common.ApiError(c, fmt.Errorf("创建目录失败: %w", err))
-		return
+	var sourceURL string
+	var cleanupFunc func()
+
+	if system_setting.TosEnabled {
+		src, err := fileHeader.Open()
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		defer src.Close()
+
+		tosURL, err := service.TosUploadFile(src, tosObjectKey, contentType)
+		if err != nil {
+			common.ApiError(c, fmt.Errorf("上传到 TOS 失败: %w", err))
+			return
+		}
+		sourceURL = tosURL
+		cleanupFunc = func() {
+			_ = service.TosDeleteFile(tosObjectKey)
+		}
+	} else {
+		userDir := filepath.Join(assetBaseDir, strconv.Itoa(userId))
+		if err := os.MkdirAll(userDir, 0755); err != nil {
+			common.ApiError(c, fmt.Errorf("创建目录失败: %w", err))
+			return
+		}
+
+		src, err := fileHeader.Open()
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		defer src.Close()
+
+		dstPath := filepath.Join(userDir, storedFileName)
+		dstFile, err := os.Create(dstPath)
+		if err != nil {
+			common.ApiError(c, fmt.Errorf("创建文件失败: %w", err))
+			return
+		}
+		defer dstFile.Close()
+
+		if _, err := io.Copy(dstFile, src); err != nil {
+			common.ApiError(c, fmt.Errorf("写入文件失败: %w", err))
+			return
+		}
+
+		sourceURL = fmt.Sprintf("/api/studio/assets/file/%d/%s", userId, storedFileName)
+		cleanupFunc = func() {
+			_ = os.Remove(dstPath)
+		}
 	}
-
-	src, err := fileHeader.Open()
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	defer src.Close()
-
-	dstPath := filepath.Join(userDir, storedFileName)
-	dstFile, err := os.Create(dstPath)
-	if err != nil {
-		common.ApiError(c, fmt.Errorf("创建文件失败: %w", err))
-		return
-	}
-	defer dstFile.Close()
-
-	if _, err := io.Copy(dstFile, src); err != nil {
-		common.ApiError(c, fmt.Errorf("写入文件失败: %w", err))
-		return
-	}
-
-	// sourceURL is a relative path stored in DB and used for browser display.
-	// It works regardless of how the server is accessed externally.
-	sourceURL := fmt.Sprintf("/api/studio/assets/file/%d/%s", userId, storedFileName)
 
 	// For Ark API calls and direct external access (e.g. Seedance), an absolute
 	// publicly-accessible URL is required. localhost/127.x addresses cannot be
@@ -140,8 +184,10 @@ func UploadUserAsset(c *gin.Context) {
 
 	var arkAssetId, arkAssetUri string
 	if !arkAddrInvalid {
-		// Absolute URL that external services (Ark, Seedance) can reach.
-		arkDownloadURL := serverAddr + sourceURL
+		arkDownloadURL := sourceURL
+		if !strings.HasPrefix(arkDownloadURL, "https://") && !strings.HasPrefix(arkDownloadURL, "http://") {
+			arkDownloadURL = serverAddr + sourceURL
+		}
 		var arkErr error
 		arkAssetId, arkAssetUri, arkErr = service.ArkCreateAsset(
 			name,
@@ -162,6 +208,12 @@ func UploadUserAsset(c *gin.Context) {
 	arkStatus := ""
 	if arkAssetId != "" {
 		arkStatus = "Processing"
+	} else if arkAddrInvalid {
+		// Server address is localhost or not configured — Ark registration skipped.
+		arkStatus = "Skipped"
+	} else if arkAssetUri != sourceURL {
+		// ArkCreateAsset returned the original URL on error, meaning registration failed.
+		arkStatus = "Failed"
 	}
 
 	asset := &model.UserAsset{
@@ -177,8 +229,9 @@ func UploadUserAsset(c *gin.Context) {
 		ArkStatus:   arkStatus,
 	}
 	if err := asset.Insert(); err != nil {
-		// Clean up the disk file to avoid an orphaned file without a DB record.
-		_ = os.Remove(dstPath)
+		if cleanupFunc != nil {
+			cleanupFunc()
+		}
 		common.ApiError(c, err)
 		return
 	}
@@ -229,10 +282,16 @@ func DeleteUserAsset(c *gin.Context) {
 		return
 	}
 
-	// Remove file from disk
 	if asset.FileName != "" {
-		filePath := filepath.Join(assetBaseDir, strconv.Itoa(userId), asset.FileName)
-		_ = os.Remove(filePath)
+		if system_setting.TosEnabled {
+			tosObjectKey := fmt.Sprintf("studio-assets/%d/%s", userId, asset.FileName)
+			if err := service.TosDeleteFile(tosObjectKey); err != nil {
+				common.SysError(fmt.Sprintf("tos delete file failed: user_id=%d file=%s err=%v", userId, asset.FileName, err))
+			}
+		} else {
+			filePath := filepath.Join(assetBaseDir, strconv.Itoa(userId), asset.FileName)
+			_ = os.Remove(filePath)
+		}
 	}
 
 	if err := model.DeleteUserAsset(userId, id); err != nil {
@@ -250,7 +309,13 @@ func ServeUserAssetFile(c *gin.Context) {
 	requestedUserId := c.Param("userId")
 	filename := c.Param("filename")
 
-	// Prevent path traversal
+	// Reject non-integer user IDs to prevent path traversal via the userId segment.
+	if _, err := strconv.Atoi(requestedUserId); err != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	// Prevent path traversal in the filename segment.
 	if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
 		c.Status(http.StatusBadRequest)
 		return

@@ -59,6 +59,7 @@ import { Route as AuthenticatedSystemSettingsSiteIndexRouteImport } from './rout
 import { Route as AuthenticatedSystemSettingsSecurityIndexRouteImport } from './routes/_authenticated/system-settings/security/index'
 import { Route as AuthenticatedSystemSettingsOperationsIndexRouteImport } from './routes/_authenticated/system-settings/operations/index'
 import { Route as AuthenticatedSystemSettingsModelsIndexRouteImport } from './routes/_authenticated/system-settings/models/index'
+import { Route as AuthenticatedSystemSettingsIntegrationsIndexRouteImport } from './routes/_authenticated/system-settings/integrations/index'
 import { Route as AuthenticatedSystemSettingsContentIndexRouteImport } from './routes/_authenticated/system-settings/content/index'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
@@ -66,6 +67,7 @@ import { Route as AuthenticatedSystemSettingsSiteSectionRouteImport } from './ro
 import { Route as AuthenticatedSystemSettingsSecuritySectionRouteImport } from './routes/_authenticated/system-settings/security/$section'
 import { Route as AuthenticatedSystemSettingsOperationsSectionRouteImport } from './routes/_authenticated/system-settings/operations/$section'
 import { Route as AuthenticatedSystemSettingsModelsSectionRouteImport } from './routes/_authenticated/system-settings/models/$section'
+import { Route as AuthenticatedSystemSettingsIntegrationsSectionRouteImport } from './routes/_authenticated/system-settings/integrations/$section'
 import { Route as AuthenticatedSystemSettingsContentSectionRouteImport } from './routes/_authenticated/system-settings/content/$section'
 import { Route as AuthenticatedSystemSettingsBillingSectionRouteImport } from './routes/_authenticated/system-settings/billing/$section'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
@@ -338,6 +340,12 @@ const AuthenticatedSystemSettingsModelsIndexRoute =
     path: '/models/',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
+const AuthenticatedSystemSettingsIntegrationsIndexRoute =
+  AuthenticatedSystemSettingsIntegrationsIndexRouteImport.update({
+    id: '/integrations/',
+    path: '/integrations/',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsContentIndexRoute =
   AuthenticatedSystemSettingsContentIndexRouteImport.update({
     id: '/content/',
@@ -378,6 +386,12 @@ const AuthenticatedSystemSettingsModelsSectionRoute =
   AuthenticatedSystemSettingsModelsSectionRouteImport.update({
     id: '/models/$section',
     path: '/models/$section',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedSystemSettingsIntegrationsSectionRoute =
+  AuthenticatedSystemSettingsIntegrationsSectionRouteImport.update({
+    id: '/integrations/$section',
+    path: '/integrations/$section',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
 const AuthenticatedSystemSettingsContentSectionRoute =
@@ -447,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
+  '/system-settings/integrations/$section': typeof AuthenticatedSystemSettingsIntegrationsSectionRoute
   '/system-settings/models/$section': typeof AuthenticatedSystemSettingsModelsSectionRoute
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
@@ -454,6 +469,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
+  '/system-settings/integrations/': typeof AuthenticatedSystemSettingsIntegrationsIndexRoute
   '/system-settings/models/': typeof AuthenticatedSystemSettingsModelsIndexRoute
   '/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
@@ -506,6 +522,7 @@ export interface FileRoutesByTo {
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
+  '/system-settings/integrations/$section': typeof AuthenticatedSystemSettingsIntegrationsSectionRoute
   '/system-settings/models/$section': typeof AuthenticatedSystemSettingsModelsSectionRoute
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
@@ -513,6 +530,7 @@ export interface FileRoutesByTo {
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
+  '/system-settings/integrations': typeof AuthenticatedSystemSettingsIntegrationsIndexRoute
   '/system-settings/models': typeof AuthenticatedSystemSettingsModelsIndexRoute
   '/system-settings/operations': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/system-settings/security': typeof AuthenticatedSystemSettingsSecurityIndexRoute
@@ -569,6 +587,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/_authenticated/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
+  '/_authenticated/system-settings/integrations/$section': typeof AuthenticatedSystemSettingsIntegrationsSectionRoute
   '/_authenticated/system-settings/models/$section': typeof AuthenticatedSystemSettingsModelsSectionRoute
   '/_authenticated/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
@@ -576,6 +595,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
+  '/_authenticated/system-settings/integrations/': typeof AuthenticatedSystemSettingsIntegrationsIndexRoute
   '/_authenticated/system-settings/models/': typeof AuthenticatedSystemSettingsModelsIndexRoute
   '/_authenticated/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/_authenticated/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
@@ -631,6 +651,7 @@ export interface FileRouteTypes {
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
+    | '/system-settings/integrations/$section'
     | '/system-settings/models/$section'
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
@@ -638,6 +659,7 @@ export interface FileRouteTypes {
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
+    | '/system-settings/integrations/'
     | '/system-settings/models/'
     | '/system-settings/operations/'
     | '/system-settings/security/'
@@ -690,6 +712,7 @@ export interface FileRouteTypes {
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
+    | '/system-settings/integrations/$section'
     | '/system-settings/models/$section'
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
@@ -697,6 +720,7 @@ export interface FileRouteTypes {
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
+    | '/system-settings/integrations'
     | '/system-settings/models'
     | '/system-settings/operations'
     | '/system-settings/security'
@@ -752,6 +776,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
     | '/_authenticated/system-settings/content/$section'
+    | '/_authenticated/system-settings/integrations/$section'
     | '/_authenticated/system-settings/models/$section'
     | '/_authenticated/system-settings/operations/$section'
     | '/_authenticated/system-settings/security/$section'
@@ -759,6 +784,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
+    | '/_authenticated/system-settings/integrations/'
     | '/_authenticated/system-settings/models/'
     | '/_authenticated/system-settings/operations/'
     | '/_authenticated/system-settings/security/'
@@ -1138,6 +1164,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsModelsIndexRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
+    '/_authenticated/system-settings/integrations/': {
+      id: '/_authenticated/system-settings/integrations/'
+      path: '/integrations'
+      fullPath: '/system-settings/integrations/'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsIntegrationsIndexRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
     '/_authenticated/system-settings/content/': {
       id: '/_authenticated/system-settings/content/'
       path: '/content'
@@ -1185,6 +1218,13 @@ declare module '@tanstack/react-router' {
       path: '/models/$section'
       fullPath: '/system-settings/models/$section'
       preLoaderRoute: typeof AuthenticatedSystemSettingsModelsSectionRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/system-settings/integrations/$section': {
+      id: '/_authenticated/system-settings/integrations/$section'
+      path: '/integrations/$section'
+      fullPath: '/system-settings/integrations/$section'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsIntegrationsSectionRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
     '/_authenticated/system-settings/content/$section': {
@@ -1242,6 +1282,7 @@ interface AuthenticatedSystemSettingsRouteRouteChildren {
   AuthenticatedSystemSettingsAuthSectionRoute: typeof AuthenticatedSystemSettingsAuthSectionRoute
   AuthenticatedSystemSettingsBillingSectionRoute: typeof AuthenticatedSystemSettingsBillingSectionRoute
   AuthenticatedSystemSettingsContentSectionRoute: typeof AuthenticatedSystemSettingsContentSectionRoute
+  AuthenticatedSystemSettingsIntegrationsSectionRoute: typeof AuthenticatedSystemSettingsIntegrationsSectionRoute
   AuthenticatedSystemSettingsModelsSectionRoute: typeof AuthenticatedSystemSettingsModelsSectionRoute
   AuthenticatedSystemSettingsOperationsSectionRoute: typeof AuthenticatedSystemSettingsOperationsSectionRoute
   AuthenticatedSystemSettingsSecuritySectionRoute: typeof AuthenticatedSystemSettingsSecuritySectionRoute
@@ -1249,6 +1290,7 @@ interface AuthenticatedSystemSettingsRouteRouteChildren {
   AuthenticatedSystemSettingsAuthIndexRoute: typeof AuthenticatedSystemSettingsAuthIndexRoute
   AuthenticatedSystemSettingsBillingIndexRoute: typeof AuthenticatedSystemSettingsBillingIndexRoute
   AuthenticatedSystemSettingsContentIndexRoute: typeof AuthenticatedSystemSettingsContentIndexRoute
+  AuthenticatedSystemSettingsIntegrationsIndexRoute: typeof AuthenticatedSystemSettingsIntegrationsIndexRoute
   AuthenticatedSystemSettingsModelsIndexRoute: typeof AuthenticatedSystemSettingsModelsIndexRoute
   AuthenticatedSystemSettingsOperationsIndexRoute: typeof AuthenticatedSystemSettingsOperationsIndexRoute
   AuthenticatedSystemSettingsSecurityIndexRoute: typeof AuthenticatedSystemSettingsSecurityIndexRoute
@@ -1265,6 +1307,8 @@ const AuthenticatedSystemSettingsRouteRouteChildren: AuthenticatedSystemSettings
       AuthenticatedSystemSettingsBillingSectionRoute,
     AuthenticatedSystemSettingsContentSectionRoute:
       AuthenticatedSystemSettingsContentSectionRoute,
+    AuthenticatedSystemSettingsIntegrationsSectionRoute:
+      AuthenticatedSystemSettingsIntegrationsSectionRoute,
     AuthenticatedSystemSettingsModelsSectionRoute:
       AuthenticatedSystemSettingsModelsSectionRoute,
     AuthenticatedSystemSettingsOperationsSectionRoute:
@@ -1279,6 +1323,8 @@ const AuthenticatedSystemSettingsRouteRouteChildren: AuthenticatedSystemSettings
       AuthenticatedSystemSettingsBillingIndexRoute,
     AuthenticatedSystemSettingsContentIndexRoute:
       AuthenticatedSystemSettingsContentIndexRoute,
+    AuthenticatedSystemSettingsIntegrationsIndexRoute:
+      AuthenticatedSystemSettingsIntegrationsIndexRoute,
     AuthenticatedSystemSettingsModelsIndexRoute:
       AuthenticatedSystemSettingsModelsIndexRoute,
     AuthenticatedSystemSettingsOperationsIndexRoute:

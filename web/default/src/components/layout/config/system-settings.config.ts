@@ -21,6 +21,7 @@ import {
   Box,
   CreditCard,
   Layout,
+  Plug,
   Settings,
   Shield,
   ShieldAlert,
@@ -32,6 +33,7 @@ import { getContentSectionNavItems } from '@/features/system-settings/content/se
 import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
 import { getOperationsSectionNavItems } from '@/features/system-settings/operations/section-registry.tsx'
 import { getSecuritySectionNavItems } from '@/features/system-settings/security/section-registry.tsx'
+import { getIntegrationsSectionNavItems } from '@/features/system-settings/integrations/section-registry.tsx'
 import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
 import type { NavGroup, SidebarView } from '../types'
 
@@ -82,6 +84,11 @@ function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
           title: t('Operations'),
           icon: Wrench,
           items: getOperationsSectionNavItems(t),
+        },
+        {
+          title: t('Integrations'),
+          icon: Plug,
+          items: getIntegrationsSectionNavItems(t),
         },
       ],
     },

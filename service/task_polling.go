@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/samber/lo"
 )
@@ -353,6 +354,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
 		return fmt.Errorf("task %s not found", taskId)
 	}
+
+	// 若任务已提交给 Mediakit 超分，跳过 doubao 轮询，直接检查 Mediakit 状态
+	if task.PrivateData.MediakitTaskID != "" {
+		return checkMediakitTaskStatus(ctx, task)
+	}
+
 	key := ch.Key
 
 	privateData := task.PrivateData
@@ -454,6 +461,10 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			if audioData, marshalErr := common.Marshal([]map[string]string{{"audio_url": taskResult.Url}}); marshalErr == nil {
 				task.Data = audioData
 			}
+		}
+		// 若需要 Mediakit 超分，提交超分任务后将任务保留在 InProgress 状态继续轮询
+		if task.PrivateData.MediakitTargetResolution != "" && taskResult.Url != "" {
+			return submitMediakitEnhancement(ctx, task, taskResult.Url, snap.Status)
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
@@ -563,4 +574,102 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		return
 	}
 	// 3. 无调整，保持预扣额度
+}
+
+// submitMediakitEnhancement 在 doubao 任务成功后提交 Mediakit 超分任务。
+// 任务保持 InProgress 状态，下一轮轮询会走 checkMediakitTaskStatus 分支。
+func submitMediakitEnhancement(ctx context.Context, task *model.Task, videoURL string, oldStatus model.TaskStatus) error {
+	apiKey := system_setting.MediakitApiKey
+	toolVersion := system_setting.MediakitToolVersion
+	scene := system_setting.MediakitScene
+	targetResolution := task.PrivateData.MediakitTargetResolution
+
+	logger.LogInfo(ctx, fmt.Sprintf("Task %s 提交 Mediakit 超分：%s -> %s", task.TaskID, "480p", targetResolution))
+
+	mkTaskID, err := SubmitEnhanceVideoTask(videoURL, targetResolution, toolVersion, scene, apiKey)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("Task %s Mediakit 提交失败，将标记任务失败: %v", task.TaskID, err))
+		// 超分提交失败 → 整个任务失败
+		now := time.Now().Unix()
+		task.Status = model.TaskStatusFailure
+		task.FinishTime = now
+		task.FailReason = fmt.Sprintf("mediakit enhance-video submit failed: %v", err)
+		task.Progress = taskcommon.ProgressComplete
+		if _, updateErr := task.UpdateWithStatus(oldStatus); updateErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("Task %s update failed: %v", task.TaskID, updateErr))
+		}
+		RefundTaskQuota(ctx, task, task.FailReason)
+		return nil
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("Task %s Mediakit 超分任务已提交， mediakit_task_id=%s", task.TaskID, mkTaskID))
+	task.PrivateData.MediakitTaskID = mkTaskID
+	// 任务保持 InProgress 状态
+	task.Status = model.TaskStatusInProgress
+	task.Progress = taskcommon.ProgressInProgress
+	task.FinishTime = 0 // 清除完成时间，等待 Mediakit 完成
+	if _, updateErr := task.UpdateWithStatus(oldStatus); updateErr != nil {
+		logger.LogError(ctx, fmt.Sprintf("Task %s save mediakit_task_id failed: %v", task.TaskID, updateErr))
+	}
+	return nil
+}
+
+// checkMediakitTaskStatus 轮询 Mediakit 超分任务状态。
+func checkMediakitTaskStatus(ctx context.Context, task *model.Task) error {
+	apiKey := system_setting.MediakitApiKey
+	mkTaskID := task.PrivateData.MediakitTaskID
+
+	status, videoURL, err := GetEnhanceVideoTaskStatus(mkTaskID, apiKey)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("Task %s checkMediakitTaskStatus 失败: %v", task.TaskID, err))
+		// 查询失败不强制失败，等待下一轮轮询
+		return nil
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("Task %s Mediakit 超分状态: %s", task.TaskID, status))
+
+	now := time.Now().Unix()
+	snap := task.Snapshot()
+
+	switch status {
+	case "succeeded", "completed":
+		task.Status = model.TaskStatusSuccess
+		task.Progress = taskcommon.ProgressComplete
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		task.PrivateData.ResultURL = videoURL
+		won, updateErr := task.UpdateWithStatus(snap.Status)
+		if updateErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("Task %s Mediakit success update failed: %v", task.TaskID, updateErr))
+			return nil
+		}
+		if !won {
+			logger.LogWarn(ctx, fmt.Sprintf("Task %s already transitioned, skip billing", task.TaskID))
+			return nil
+		}
+		// 不使用 adaptor 计费差额（已在 doubao 成功时预扣）
+		// 如果计费上下文不是按次计费，不进行差额结算
+		logger.LogInfo(ctx, fmt.Sprintf("Task %s Mediakit 超分完成，视频 URL: %s", task.TaskID, videoURL))
+	case "failed":
+		task.Status = model.TaskStatusFailure
+		task.Progress = taskcommon.ProgressComplete
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		task.FailReason = fmt.Sprintf("mediakit enhance-video task %s failed", mkTaskID)
+		won, updateErr := task.UpdateWithStatus(snap.Status)
+		if updateErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("Task %s Mediakit failure update failed: %v", task.TaskID, updateErr))
+			return nil
+		}
+		if !won {
+			logger.LogWarn(ctx, fmt.Sprintf("Task %s already transitioned, skip refund", task.TaskID))
+			return nil
+		}
+		RefundTaskQuota(ctx, task, task.FailReason)
+	default:
+		// pending / running / 未知 — 下一轮继续轮询
+	}
+	return nil
 }

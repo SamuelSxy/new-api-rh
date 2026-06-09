@@ -105,6 +105,9 @@ type TaskPrivateData struct {
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
 	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	// Mediakit 超分相关
+	MediakitTargetResolution string `json:"mediakit_target_resolution,omitempty"` // 非空 = 需要超分，值为目标分辨率(720p/1080p)
+	MediakitTaskID           string `json:"mediakit_task_id,omitempty"`           // Mediakit 异步任务 ID
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。

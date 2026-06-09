@@ -3,8 +3,10 @@ import { createSectionRegistry } from '../utils/section-registry'
 import { ArkAssetSettingsSection } from './ark-asset-settings-section'
 import { EmailSettingsSection } from './email-settings-section'
 import { IoNetDeploymentSettingsSection } from './ionet-deployment-settings-section'
+import { MediakitSettingsSection } from './mediakit-settings-section'
 import { MonitoringSettingsSection } from './monitoring-settings-section'
 import { PaymentSettingsSection } from './payment-settings-section'
+import { TosSettingsSection } from './tos-settings-section'
 import { WorkerSettingsSection } from './worker-settings-section'
 
 const INTEGRATIONS_SECTIONS = [
@@ -155,7 +157,39 @@ const INTEGRATIONS_SECTIONS = [
       />
     ),
   },
-] as const
+  {
+    id: 'mediakit',
+    titleKey: 'Mediakit Video Enhancement',
+    descriptionKey: 'Configure Volcengine Mediakit API for Seedance video enhancement',
+    build: (settings: IntegrationSettings) => (
+      <MediakitSettingsSection
+        defaultValues={{
+          MediakitEnabled: settings.MediakitEnabled ?? false,
+          MediakitApiKey: settings.MediakitApiKey ?? '',
+          MediakitToolVersion: settings.MediakitToolVersion ?? 'standard',
+          MediakitScene: settings.MediakitScene ?? 'short_series',
+          MediakitResolution: settings.MediakitResolution ?? '720p',
+        }}
+      />
+    ),
+  },
+  {
+    id: 'tos',
+    titleKey: 'TOS Object Storage',
+    descriptionKey: 'Configure Volcengine TOS object storage for studio asset uploads',
+    build: (settings: IntegrationSettings) => (
+      <TosSettingsSection
+        defaultValues={{
+          TosEnabled: settings.TosEnabled,
+          TosAccessKey: settings.TosAccessKey,
+          TosSecretKey: settings.TosSecretKey,
+          TosRegion: settings.TosRegion,
+          TosBucket: settings.TosBucket,
+          TosEndpoint: settings.TosEndpoint,
+        }}
+      />
+    ),
+  }] as const
 
 export type IntegrationSectionId = (typeof INTEGRATIONS_SECTIONS)[number]['id']
 
@@ -175,3 +209,5 @@ export const getIntegrationsSectionNavItems =
   integrationsRegistry.getSectionNavItems
 export const getIntegrationsSectionContent =
   integrationsRegistry.getSectionContent
+export const getIntegrationsSectionMeta =
+  integrationsRegistry.getSectionMeta

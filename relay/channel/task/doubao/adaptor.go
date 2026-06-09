@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -176,6 +177,20 @@ func hasVideoInMetadata(metadata map[string]interface{}) bool {
 	return false
 }
 
+// needsMediakitEnhancement 判断是否需要 Mediakit 超分：
+// 仅当 MediakitEnabled=true 且模型在 mediakitEnhanceModels 中
+// 且分辨率为 720p 或 1080p 时返回 true。
+func needsMediakitEnhancement(originModelName, resolution string) bool {
+	if !system_setting.MediakitEnabled {
+		return false
+	}
+	if !mediakitEnhanceModels[originModelName] {
+		return false
+	}
+	norm := normalizeDoubaoResolution(resolution)
+	return norm == "720p" || norm == "1080p"
+}
+
 // BuildRequestBody converts request into Doubao specific format.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	req, err := relaycommon.GetTaskRequest(c)
@@ -183,7 +198,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 
-	body, err := a.convertToRequestPayload(&req)
+	body, err := a.convertToRequestPayload(&req, info)
 	if err != nil {
 		return nil, errors.Wrap(err, "convert request payload failed")
 	}
@@ -269,7 +284,7 @@ func (a *TaskAdaptor) GetChannelName() string {
 	return ChannelName
 }
 
-func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
+func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*requestPayload, error) {
 	r := requestPayload{
 		Model:   req.Model,
 		Content: []ContentItem{},
@@ -295,6 +310,12 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	// Studio/schema 历史配置里常见 resolution 为 "720" / "1080" / "1280x720"，
 	// doubao i2v 期望 "720p" / "1080p" 这类枚举，这里做兼容归一化。
 	r.Resolution = normalizeDoubaoResolution(r.Resolution)
+
+	// 若需要 Mediakit 超分：将实际分辨率存入 TaskRelayInfo，改写请求为 480p。
+	if info != nil && info.TaskRelayInfo != nil && needsMediakitEnhancement(info.OriginModelName, r.Resolution) {
+		info.TaskRelayInfo.MediakitTargetResolution = r.Resolution
+		r.Resolution = "480p"
+	}
 
 	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
 		r.Duration = lo.ToPtr(dto.IntValue(sec))

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Music } from 'lucide-react'
+import { Music, Video, Image } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
@@ -35,6 +35,8 @@ import {
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
+import { ImageDialog } from '../dialogs/image-dialog'
+import { VideoDialog } from '../dialogs/video-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
@@ -84,6 +86,69 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
         open={open}
         onOpenChange={setOpen}
         clips={clips as AudioClip[]}
+      />
+    </>
+  )
+}
+
+const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|avi|mkv|flv|wmv|m4v|ogv)(\?|$)/i
+function isVideoUrl(url: string): boolean {
+  return VIDEO_EXTENSIONS.test(url)
+}
+
+function VideoPreviewCell({ log }: { log: TaskLog }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const resultUrl = log.result_url
+  if (!resultUrl) return null
+  return (
+    <>
+      <button
+        type='button'
+        className='group flex items-center gap-1 text-left text-xs'
+        onClick={() => setOpen(true)}
+      >
+        <Video className='text-muted-foreground size-3' />
+        <span className='text-foreground leading-snug group-hover:underline'>
+          {t('Click to preview video')}
+        </span>
+      </button>
+      <VideoDialog
+        open={open}
+        onOpenChange={setOpen}
+        videoUrl={resultUrl}
+        taskId={log.task_id}
+      />
+    </>
+  )
+}
+
+function ImagePreviewCell({ log }: { log: TaskLog }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const resultUrl = log.result_url
+  if (!resultUrl) return null
+  // If the URL actually points to a video file, use VideoPreviewCell logic
+  if (isVideoUrl(resultUrl)) {
+    return <VideoPreviewCell log={log} />
+  }
+  return (
+    <>
+      <button
+        type='button'
+        className='group flex items-center gap-1 text-left text-xs'
+        onClick={() => setOpen(true)}
+      >
+        <Image className='text-muted-foreground size-3' />
+        <span className='text-foreground leading-snug group-hover:underline'>
+          {t('Click to preview image')}
+        </span>
+      </button>
+      <ImageDialog
+        open={open}
+        onOpenChange={setOpen}
+        imageUrl={resultUrl}
+        taskId={log.task_id}
       />
     </>
   )
@@ -247,27 +312,40 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           }
         }
 
+        // Non-suno audio (e.g. TTS / RunningHub audioGenerate)
+        const isAudioTask = log.action === TASK_ACTIONS.AUDIO_GENERATE
+        if (isAudioTask && status === TASK_STATUS.SUCCESS) {
+          const data = parseTaskData(log.data)
+          if (
+            data.some(
+              (c) =>
+                c &&
+                typeof c === 'object' &&
+                (c as Record<string, unknown>).audio_url
+            )
+          ) {
+            return <AudioPreviewCell log={log} />
+          }
+        }
+
         const isVideoTask =
           log.action === TASK_ACTIONS.GENERATE ||
           log.action === TASK_ACTIONS.TEXT_GENERATE ||
           log.action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
           log.action === TASK_ACTIONS.REMIX_GENERATE
+        const isImageTask = log.action === TASK_ACTIONS.IMAGE_GENERATE
         const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
+        const hasResultUrl =
+          typeof log.result_url === 'string' &&
+          /^https?:\/\//.test(log.result_url)
 
-        if (isSuccess && isVideoTask && isUrl) {
-          const videoUrl = `/v1/videos/${log.task_id}/content`
-          return (
-            <a
-              href={videoUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-foreground text-xs hover:underline'
-            >
-              {t('Click to preview video')}
-            </a>
-          )
+        if (isSuccess && isVideoTask && hasResultUrl) {
+          return <VideoPreviewCell log={log} />
+        }
+
+        if (isSuccess && isImageTask && hasResultUrl) {
+          return <ImagePreviewCell log={log} />
         }
 
         if (!failReason) {

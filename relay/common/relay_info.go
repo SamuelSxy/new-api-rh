@@ -683,6 +683,11 @@ type TaskRelayInfo struct {
 	// a specific channel (e.g., remix on origin task's channel). Stored as any
 	// to avoid an import cycle with model; callers type-assert to *model.Channel.
 	LockedChannel any
+
+	// MediakitTargetResolution 是 doubao adaptor 在拦截高分辨率请求时设置的目标分辨率。
+	// 非空时表示需要在 doubao 任务成功后调用 Mediakit enhance-video 超分到该分辨率。
+	// doubao adaptor 将实际请求分辨率改写为 480p，原始分辨率存放在此字段。
+	MediakitTargetResolution string
 }
 
 type TaskSubmitReq struct {

@@ -612,6 +612,9 @@ func RelayTask(c *gin.Context) {
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		}
+		if relayInfo.TaskRelayInfo != nil && relayInfo.TaskRelayInfo.MediakitTargetResolution != "" {
+			task.PrivateData.MediakitTargetResolution = relayInfo.TaskRelayInfo.MediakitTargetResolution
+		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action

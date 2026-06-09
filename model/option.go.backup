@@ -86,11 +86,6 @@ common.OptionMap["StudioEnabled"] = strconv.FormatBool(common.StudioEnabled)
 	common.OptionMap["TosRegion"] = system_setting.TosRegion
 	common.OptionMap["TosBucket"] = system_setting.TosBucket
 	common.OptionMap["TosEndpoint"] = system_setting.TosEndpoint
-	common.OptionMap["MediakitEnabled"] = strconv.FormatBool(system_setting.MediakitEnabled)
-	common.OptionMap["MediakitApiKey"] = system_setting.MediakitApiKey
-	common.OptionMap["MediakitToolVersion"] = system_setting.MediakitToolVersion
-	common.OptionMap["MediakitScene"] = system_setting.MediakitScene
-	common.OptionMap["MediakitResolution"] = system_setting.MediakitResolution
 	common.OptionMap["PayAddress"] = ""
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
@@ -343,8 +338,6 @@ func updateOptionMap(key string, value string) (err error) {
 			common.StudioEnabled = boolValue
 		case "TosEnabled":
 			system_setting.TosEnabled = boolValue
-		case "MediakitEnabled":
-			system_setting.MediakitEnabled = boolValue
 		case "DataExportEnabled":
 			common.DataExportEnabled = boolValue
 		case "DefaultCollapseSidebar":
@@ -423,14 +416,6 @@ func updateOptionMap(key string, value string) (err error) {
 		system_setting.TosBucket = value
 	case "TosEndpoint":
 		system_setting.TosEndpoint = value
-	case "MediakitApiKey":
-		system_setting.MediakitApiKey = value
-	case "MediakitToolVersion":
-		system_setting.MediakitToolVersion = value
-	case "MediakitScene":
-		system_setting.MediakitScene = value
-	case "MediakitResolution":
-		system_setting.MediakitResolution = value
 	case "PayAddress":
 		operation_setting.PayAddress = value
 	case "Chats":

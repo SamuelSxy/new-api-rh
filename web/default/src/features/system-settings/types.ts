@@ -148,6 +148,17 @@ export type IntegrationSettings = {
   ArkAssetRegion: string
   ArkAssetProjectName: string
   ArkAssetGroupId: string
+  MediakitEnabled: boolean
+  MediakitApiKey: string
+  MediakitToolVersion: string
+  MediakitScene: string
+  MediakitResolution: string
+  TosEnabled: boolean
+  TosAccessKey: string
+  TosSecretKey: string
+  TosRegion: string
+  TosBucket: string
+  TosEndpoint: string
   ChannelDisableThreshold: string
   QuotaRemindThreshold: string
   AutomaticDisableChannelEnabled: boolean

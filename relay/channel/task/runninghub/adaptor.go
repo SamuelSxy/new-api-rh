@@ -539,6 +539,16 @@ if apiPath, ok := metadata["api_path"].(string); ok && strings.TrimSpace(apiPath
 info.UpstreamModelName = strings.TrimSpace(apiPath)
 }
 
+hasImage := len(taskReq.Images) > 0 || taskReq.Image != ""
+if !strings.HasSuffix(info.UpstreamModelName, "/text-to-image") &&
+	!strings.HasSuffix(info.UpstreamModelName, "/image-to-image") {
+	if hasImage {
+		info.UpstreamModelName = strings.TrimRight(info.UpstreamModelName, "/") + "/image-to-image"
+	} else {
+		info.UpstreamModelName = strings.TrimRight(info.UpstreamModelName, "/") + "/text-to-image"
+	}
+}
+
 info.Action = constant.TaskActionImageGenerate
 c.Set("task_request", taskReq)
 return nil

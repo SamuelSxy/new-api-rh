@@ -7,6 +7,8 @@ var ModelList = []string{
 	"doubao-seedance-1-5-pro-251215",
 	"doubao-seedance-2-0-260128",
 	"doubao-seedance-2-0-fast-260128",
+	"doubao-seedance-2-0-fall",
+	"doubao-seedance-2-0-fast-fall",
 }
 
 var ChannelName = "doubao-video"
@@ -17,6 +19,14 @@ var ChannelName = "doubao-video"
 var videoInputRatioMap = map[string]float64{
 	"doubao-seedance-2-0-260128":      28.0 / 46.0, // ~0.6087
 	"doubao-seedance-2-0-fast-260128": 22.0 / 37.0, // ~0.5946
+}
+
+// mediakitEnhanceModels 指定需要走 480p 生成 + Mediakit 超分路径的模型集合。
+// 当 MediakitEnabled=true 且请求分辨率为 720p/1080p 时，系统会将实际请求替换为 480p，
+// 生成完成后由 Mediakit enhance-video API 超分到目标分辨率。
+var mediakitEnhanceModels = map[string]bool{
+	"doubao-seedance-2-0-fall":      true,
+	"doubao-seedance-2-0-fast-fall": true,
 }
 
 func GetVideoInputRatio(modelName string) (float64, bool) {
