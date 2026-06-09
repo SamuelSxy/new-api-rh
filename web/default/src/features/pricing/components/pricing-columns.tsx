@@ -34,8 +34,9 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import { isDurationBillingModel, isTokenBasedModel } from '../lib/model-helpers'
 import {
+  formatPerSecondPrice,
   formatPrice,
   formatRequestPrice,
   stripTrailingZeros,
@@ -208,7 +209,7 @@ export function usePricingColumns(
           )
         }
 
-        const isTokenBased = isTokenBasedModel(model)
+        const isTokenBased = isTokenBasedModel(model) && !isDurationBillingModel(model)
 
         if (isTokenBased) {
           const inputPrice = stripTrailingZeros(
@@ -254,6 +255,25 @@ export function usePricingColumns(
             usdExchangeRate
           )
         )
+
+        if (isDurationBillingModel(model)) {
+          const perSecondPrice = stripTrailingZeros(
+            formatPerSecondPrice(
+              model,
+              showRechargePrice,
+              priceRate,
+              usdExchangeRate
+            )
+          )
+          return (
+            <div className='min-w-[100px]'>
+              <span className='font-mono text-sm tabular-nums'>{perSecondPrice}</span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / s
+              </div>
+            </div>
+          )
+        }
 
         return (
           <div className='min-w-[100px]'>

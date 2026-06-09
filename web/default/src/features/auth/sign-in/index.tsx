@@ -31,9 +31,18 @@ export function SignIn() {
   return (
     <AuthLayout>
       <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Sign in')}
+        <div className='space-y-3'>
+          <div className='inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-[11px] font-medium text-blue-600 shadow-xs dark:border-blue-400/20 dark:bg-blue-400/5 dark:text-blue-400'>
+            <span className='relative flex size-1.5'>
+              <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
+              <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
+            </span>
+            <span>{t('Welcome back')}</span>
+          </div>
+          <h2 className='text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight'>
+            <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
+              {t('Sign in')}
+            </span>
           </h2>
           {!status?.self_use_mode_enabled &&
             status?.register_enabled !== false && (

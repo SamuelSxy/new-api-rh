@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -50,8 +51,18 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if !common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
 		if modelRatio, hasRatio, _ := ratio_setting.GetModelRatio(info.OriginModelName); hasRatio {
 			other["model_ratio"] = modelRatio
-			other["completion_ratio"] = 1.0
 			delete(other, "model_price")
+			if !billing_setting.IsDurationBillingModel(info.OriginModelName) {
+				// token 制：添加 completion_ratio 供前端展示输入/输出价格
+				other["completion_ratio"] = 1.0
+			}
+		}
+	}
+	// 按秒计费：写入 billing_mode 和估算秒数供前端正确渲染
+	if billing_setting.IsDurationBillingModel(info.OriginModelName) {
+		other["billing_mode"] = billing_setting.BillingModePerSecond
+		if sec, ok := info.PriceData.OtherRatios["seconds"]; ok {
+			other["seconds"] = sec
 		}
 	}
 	if info.IsModelMapped {
@@ -138,6 +149,11 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 				other[k] = v
 			}
 		}
+	}
+	// 写入计费模式，供前端日志正确渲染
+	modelName := taskModelName(task)
+	if billing_setting.IsDurationBillingModel(modelName) {
+		other["billing_mode"] = billing_setting.BillingModePerSecond
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {

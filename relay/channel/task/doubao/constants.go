@@ -1,5 +1,7 @@
 package doubao
 
+import "github.com/QuantumNous/new-api/setting/billing_setting"
+
 var ModelList = []string{
 	"doubao-seedance-1-0-pro-250528",
 	"doubao-seedance-1-0-lite-t2v",
@@ -27,6 +29,18 @@ var videoInputRatioMap = map[string]float64{
 var mediakitEnhanceModels = map[string]bool{
 	"doubao-seedance-2-0-fall":      true,
 	"doubao-seedance-2-0-fast-fall": true,
+}
+
+// durationBillingModels 指定按生成视频时长（秒）计费的模型，值为请求未指定时长时使用的默认秒数。
+// 计费公式：ModelRatio × QuotaPerUnit × GroupRatio × 实际秒数。
+// 管理员应将 ModelRatio 设置为每秒对应的 Dollar 价格（如 $0.014/s 填 0.014）。
+var durationBillingModels = map[string]int{
+	"doubao-seedance-2-0-fall":      5,
+	"doubao-seedance-2-0-fast-fall": 5,
+}
+
+func init() {
+	billing_setting.RegisterDurationBillingFallbacks(durationBillingModels)
 }
 
 func GetVideoInputRatio(modelName string) (float64, bool) {

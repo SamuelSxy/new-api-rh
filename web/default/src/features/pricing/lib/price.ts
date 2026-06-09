@@ -295,3 +295,36 @@ export function formatRequestPrice(
     abbreviate: false,
   })
 }
+
+/**
+ * Format price per second for duration-based billing models.
+ * model_ratio stores the USD price per second directly (not a ×2 token ratio).
+ */
+export function formatPerSecondPrice(
+  model: PricingModel,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1
+): string {
+  const enableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+  const groupRatio = model.group_ratio || {}
+  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+
+  // model_ratio IS the $/s price — no token ×2 conversion
+  let priceInUSD = model.model_ratio * minRatio
+
+  priceInUSD = applyRechargeRate(
+    priceInUSD,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+
+  return formatCurrencyFromUSD(priceInUSD, {
+    digitsLarge: 4,
+    digitsSmall: 6,
+    abbreviate: false,
+  })
+}

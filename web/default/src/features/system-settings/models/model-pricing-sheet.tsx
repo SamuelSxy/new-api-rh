@@ -90,7 +90,7 @@ type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
+type PricingMode = 'per-token' | 'per-request' | 'tiered_expr' | 'per-second'
 type LaneKey =
   | 'completion'
   | 'cache'
@@ -112,6 +112,7 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+  defaultSeconds?: string
 }
 
 type ModelPricingSheetProps = {
@@ -276,14 +277,16 @@ function createInitialLaneState(data?: ModelRatioData | null) {
 function getModeLabel(mode: PricingMode) {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'per-second') return 'Per-second'
   return 'Per-token'
 }
 
 function getModeBadgeVariant(
   mode: PricingMode
-): 'default' | 'secondary' | 'outline' {
+): 'default' | 'secondary' | 'outline' | 'success' {
   if (mode === 'per-request') return 'secondary'
   if (mode === 'tiered_expr') return 'default'
+  if (mode === 'per-second') return 'success'
   return 'outline'
 }
 
@@ -295,8 +298,25 @@ function buildPreviewRows(
   promptPrice: string,
   lanePrices: Record<LaneKey, string>,
   laneEnabled: Record<LaneKey, boolean>,
-  t: (key: string) => string
+  t: (key: string) => string,
+  perSecondDefaultSeconds?: string
 ): PreviewRow[] {
+  if (mode === 'per-second') {
+    return [
+      { key: 'mode', label: 'BillingMode', value: 'per-second' },
+      {
+        key: 'ratio',
+        label: t('$/s price'),
+        value: values.ratio ? `$${values.ratio}/s` : t('Empty'),
+      },
+      {
+        key: 'defaultSeconds',
+        label: t('Default seconds'),
+        value: perSecondDefaultSeconds || t('Empty'),
+      },
+    ]
+  }
+
   if (mode === 'tiered_expr') {
     const effectiveExpr = combineBillingExpr(billingExpr, requestRuleExpr)
     return [
@@ -432,6 +452,7 @@ export function ModelPricingEditorPanel({
   })
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
+  const [perSecondDefaultSeconds, setPerSecondDefaultSeconds] = useState('')
   const [previewOpen, setPreviewOpen] = useState(true)
   const isEditMode = !!editData
 
@@ -468,12 +489,15 @@ export function ModelPricingEditorPanel({
       setPricingMode(
         editData.billingMode === 'tiered_expr'
           ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
+          : editData.billingMode === 'per-second'
+            ? 'per-second'
+            : editData.price
+              ? 'per-request'
+              : 'per-token'
       )
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
+      setPerSecondDefaultSeconds(editData.defaultSeconds || '')
     } else {
       form.reset({
         name: '',
@@ -489,6 +513,7 @@ export function ModelPricingEditorPanel({
       setPricingMode('per-token')
       setBillingExpr('')
       setRequestRuleExpr('')
+      setPerSecondDefaultSeconds('')
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -628,12 +653,14 @@ export function ModelPricingEditorPanel({
         promptPrice,
         lanePrices,
         laneEnabled,
-        t
+        t,
+        perSecondDefaultSeconds
       ),
     [
       billingExpr,
       laneEnabled,
       lanePrices,
+      perSecondDefaultSeconds,
       pricingMode,
       promptPrice,
       requestRuleExpr,
@@ -728,6 +755,8 @@ export function ModelPricingEditorPanel({
     if (pricingMode === 'tiered_expr') {
       data.billingExpr = billingExpr
       data.requestRuleExpr = requestRuleExpr
+    } else if (pricingMode === 'per-second') {
+      data.defaultSeconds = perSecondDefaultSeconds
     }
 
     onSave(data)
@@ -803,13 +832,16 @@ export function ModelPricingEditorPanel({
               />
 
               <Tabs value={pricingMode} onValueChange={handleModeChange}>
-                <TabsList className='grid w-full grid-cols-3'>
+                <TabsList className='grid w-full grid-cols-4'>
                   <TabsTrigger value='per-token'>{t('Per-token')}</TabsTrigger>
                   <TabsTrigger value='per-request'>
                     {t('Per-request')}
                   </TabsTrigger>
                   <TabsTrigger value='tiered_expr'>
                     {t('Expression')}
+                  </TabsTrigger>
+                  <TabsTrigger value='per-second'>
+                    {t('Per-second')}
                   </TabsTrigger>
                 </TabsList>
 
@@ -893,6 +925,63 @@ export function ModelPricingEditorPanel({
                       </FormItem>
                     )}
                   />
+                </TabsContent>
+
+                <TabsContent
+                  value='per-second'
+                  className='flex flex-col gap-5'
+                >
+                  <FormField
+                    control={form.control}
+                    name='ratio'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('$/s price')}</FormLabel>
+                        <FormControl>
+                          <InputGroup>
+                            <InputGroupAddon>$</InputGroupAddon>
+                            <InputGroupInput
+                              inputMode='decimal'
+                              placeholder='0.014'
+                              {...field}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                if (numericDraftRegex.test(value)) {
+                                  field.onChange(value)
+                                }
+                              }}
+                            />
+                            <InputGroupAddon align='inline-end'>/s</InputGroupAddon>
+                          </InputGroup>
+                        </FormControl>
+                        <FormDescription>
+                          {t('USD price per second for video generation.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormItem>
+                    <FormLabel>{t('Default seconds')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        inputMode='numeric'
+                        placeholder='5'
+                        value={perSecondDefaultSeconds}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          if (/^\d*$/.test(value)) {
+                            setPerSecondDefaultSeconds(value)
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Default duration when request does not specify seconds.'
+                      )}
+                    </FormDescription>
+                  </FormItem>
                 </TabsContent>
 
                 <TabsContent

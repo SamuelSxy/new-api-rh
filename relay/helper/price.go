@@ -201,6 +201,16 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 				freeModel = true
 			}
 		}
+	} else if billing_setting.IsDurationBillingModel(info.OriginModelName) {
+		// 按秒计费：model_ratio 直接代表 $/s，不做 /2 折扣
+		quota = int(modelRatio * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		modelPrice = -1
+		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+			if groupRatioInfo.GroupRatio == 0 || modelRatio == 0 {
+				quota = 0
+				freeModel = true
+			}
+		}
 	} else {
 		// 按量计费：以模型倍率的一半作为预扣额度
 		quota = int(modelRatio / 2 * common.QuotaPerUnit * groupRatioInfo.GroupRatio)

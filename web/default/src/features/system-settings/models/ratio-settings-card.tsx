@@ -130,6 +130,15 @@ const modelSchema = z.object({
       })
     }
   }),
+  DurationBilling: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
 })
 
 const groupSchema = z.object({
@@ -249,6 +258,7 @@ export function RatioSettingsCard({
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+    DurationBilling: normalizeJsonString(modelDefaults.DurationBilling),
   })
 
   const groupNormalizedDefaults = useRef({
@@ -280,6 +290,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      DurationBilling: formatJsonForTextarea(modelDefaults.DurationBilling),
     },
   })
 
@@ -314,6 +325,7 @@ export function RatioSettingsCard({
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+      DurationBilling: normalizeJsonString(modelDefaults.DurationBilling),
     }
 
     modelForm.reset({
@@ -330,6 +342,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      DurationBilling: formatJsonForTextarea(modelDefaults.DurationBilling),
     })
   }, [modelDefaults, modelForm])
 
@@ -373,11 +386,13 @@ export function RatioSettingsCard({
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
+        DurationBilling: normalizeJsonString(values.DurationBilling),
       }
 
       const apiKeyMap: Record<string, string> = {
         BillingMode: 'billing_setting.billing_mode',
         BillingExpr: 'billing_setting.billing_expr',
+        DurationBilling: 'billing_setting.duration_billing',
       }
 
       const updates = (

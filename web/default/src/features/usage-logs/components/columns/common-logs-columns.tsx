@@ -193,9 +193,15 @@ function buildDetailSegments(
     }
   } else {
     const isPerCall = isPerCallBilling(other.model_price)
+    const isPerSecond = other.billing_mode === 'per-second' || (other.billing_mode == null && other.seconds != null && other.model_ratio != null)
     if (isPerCall) {
       segments.push({
         text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
+      })
+    } else if (isPerSecond && other.model_ratio != null) {
+      // 按秒计费：model_ratio 直接是 $/s，不做 ×2 token 换算
+      segments.push({
+        text: `${t('Per-second')} · ${formatBillingCurrencyFromUSD(other.model_ratio, priceOpts)}/s`,
       })
     } else if (other.model_ratio != null) {
       const inputPriceUSD = other.model_ratio * 2.0

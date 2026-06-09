@@ -184,6 +184,14 @@ function BillingBreakdown(props: {
         value: fmtPrice(other.model_price),
       })
     }
+  } else if (other.billing_mode === 'per-second' || (other.billing_mode == null && other.seconds != null && other.model_ratio != null)) {
+    rows.push({ label: t('Billing Mode'), value: t('Per-second') })
+    if (other.model_ratio != null) {
+      rows.push({
+        label: t('$/s price'),
+        value: `${fmtPrice(other.model_ratio)}/s`,
+      })
+    }
   } else {
     rows.push({ label: t('Billing Mode'), value: t('Per-token') })
     if (other.model_ratio != null) {

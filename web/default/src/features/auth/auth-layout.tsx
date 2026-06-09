@@ -31,6 +31,18 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
   return (
     <div className='relative grid h-svh max-w-none'>
+      {/* Radial gradient — matches homepage hero */}
+      <div
+        aria-hidden
+        className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
+        style={{
+          background: [
+            'radial-gradient(ellipse 70% 60% at 15% 10%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 60% 50% at 85% 20%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 50% 40% at 50% 90%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
+          ].join(', '),
+        }}
+      />
       <Link
         to='/'
         className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'

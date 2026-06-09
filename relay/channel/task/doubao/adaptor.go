@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -56,6 +57,7 @@ type requestPayload struct {
 	} `json:"tools,omitempty"`
 	Resolution  string         `json:"resolution,omitempty"`
 	Ratio       string         `json:"ratio,omitempty"`
+	RenderMode  string         `json:"render_mode,omitempty"`
 	Duration    *dto.IntValue  `json:"duration,omitempty"`
 	Frames      *dto.IntValue  `json:"frames,omitempty"`
 	Seed        *dto.IntValue  `json:"seed,omitempty"`
@@ -134,18 +136,129 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
+// EstimateBilling 根据模型计费模式返回 OtherRatios。
+// 对于按秒计费模型，返回 video_input 折扣 + seconds（估算秒数）。
+// 对于普通视频输入，仅返回 video_input 折扣。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
+
+	ratios := make(map[string]float64)
+
+	// 按秒计费
+	if defaultSec, ok := isDurationBilling(info.OriginModelName); ok {
+		sec := resolveRequestedDuration(req, defaultSec)
+		if sec > 0 {
+			// 已知时长：按估算秒数预扣
+			ratios["seconds"] = float64(sec)
+		}
+		// sec <= 0 表示时长未知，不预扣时长费，AdjustBillingOnComplete 完成后补收
+		// 也检查是否有视频输入折扣
+		if hasVideoInMetadata(req.Metadata) {
+			if r, ok2 := GetVideoInputRatio(info.OriginModelName); ok2 {
+				ratios["video_input"] = r
+			}
+		}
+		return ratios
+	}
+
+	// 普通视频输入折扣
 	if hasVideoInMetadata(req.Metadata) {
-		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
+		if r, ok := GetVideoInputRatio(info.OriginModelName); ok {
+			ratios["video_input"] = r
 		}
 	}
-	return nil
+	if len(ratios) == 0 {
+		return nil
+	}
+	return ratios
+}
+
+// isDurationBilling 返回模型是否按秒计费及默认秒数。
+// 优先级：billing_setting DB 配置 > 硬编码 durationBillingModels（通过 billing_setting fallback）。
+func isDurationBilling(modelName string) (defaultSec int, ok bool) {
+	if billing_setting.IsDurationBillingModel(modelName) {
+		if sec, configured := billing_setting.GetDurationBillingDefault(modelName); configured {
+			return sec, true
+		}
+		return 5, true
+	}
+	return 0, false
+}
+
+// resolveRequestedDuration 从请求中提取视频时长（秒），优先级：
+// req.Duration > req.Seconds > metadata["duration"] > defaultSec
+func resolveRequestedDuration(req relaycommon.TaskSubmitReq, defaultSec int) int {
+	if req.Duration > 0 {
+		return req.Duration
+	}
+	if req.Seconds != "" {
+		if i, err := strconv.Atoi(req.Seconds); err == nil && i > 0 {
+			return i
+		}
+	}
+	if req.Metadata != nil {
+		if v, ok := req.Metadata["duration"]; ok {
+			switch n := v.(type) {
+			case float64:
+				if n > 0 {
+					return int(n)
+				}
+			case int:
+				if n > 0 {
+					return n
+				}
+			case string:
+				if i, err := strconv.Atoi(n); err == nil && i > 0 {
+					return i
+				}
+			}
+		}
+	}
+	return defaultSec
+}
+
+// AdjustBillingOnComplete 用 API 实际返回的视频时长重新结算按秒计费。
+// - 已知预估时长：actualQuota = preChargedQuota / estimatedSeconds * actualSeconds
+// - 未知预估时长（estimatedSeconds <= 0）：从 modelRatio × groupRatio × actualDuration 从零计算
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, _ *relaycommon.TaskInfo) int {
+	if _, ok := isDurationBilling(task.Properties.OriginModelName); !ok {
+		return 0
+	}
+
+	// 从任务结果数据中解析实际视频时长
+	var resTask responseTask
+	if err := common.Unmarshal(task.Data, &resTask); err != nil || resTask.Duration <= 0 {
+		return 0
+	}
+
+	bc := task.PrivateData.BillingContext
+	if bc == nil {
+		return 0
+	}
+
+	estimatedSeconds := bc.OtherRatios["seconds"]
+
+	if estimatedSeconds > 0 {
+		// 已知预估时长：按比例折算
+		quota := int(float64(task.Quota) / estimatedSeconds * float64(resTask.Duration))
+		if quota < 0 {
+			quota = 0
+		}
+		return quota
+	}
+
+	// 未知预估时长（提交时未预扣秒数）：从 modelRatio × groupRatio × actualDuration 从零计算
+	if bc.ModelRatio <= 0 || bc.GroupRatio <= 0 {
+		return 0
+	}
+	quota := int(bc.ModelRatio * common.QuotaPerUnit * bc.GroupRatio * float64(resTask.Duration))
+	if quota < 0 {
+		quota = 0
+	}
+	return quota
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，

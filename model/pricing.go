@@ -336,6 +336,8 @@ func updatePricing() {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
 			}
+		} else if billing_setting.IsDurationBillingModel(model) {
+			pricing.BillingMode = billing_setting.BillingModePerSecond
 		}
 		pricingMap = append(pricingMap, pricing)
 	}
