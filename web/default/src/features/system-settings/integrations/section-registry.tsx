@@ -186,6 +186,8 @@ const INTEGRATIONS_SECTIONS = [
           TosRegion: settings.TosRegion,
           TosBucket: settings.TosBucket,
           TosEndpoint: settings.TosEndpoint,
+          TosPublicRead: settings.TosPublicRead,
+          TosCustomDomain: settings.TosCustomDomain,
         }}
       />
     ),

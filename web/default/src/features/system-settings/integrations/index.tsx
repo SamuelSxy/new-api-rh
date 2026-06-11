@@ -91,6 +91,8 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   TosRegion: 'cn-beijing',
   TosBucket: '',
   TosEndpoint: '',
+  TosPublicRead: false,
+  TosCustomDomain: '',
 }
 
 export function IntegrationSettings() {

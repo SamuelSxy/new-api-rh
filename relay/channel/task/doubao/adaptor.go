@@ -430,7 +430,11 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		r.Resolution = "480p"
 	}
 
-	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
+	// 顶层 duration 优先级最高（与 resolveRequestedDuration 扣费逻辑保持一致），
+	// 其次是 req.Seconds，metadata.duration 已由 UnmarshalMetadata 写入 r.Duration 作为兜底。
+	if req.Duration > 0 {
+		r.Duration = lo.ToPtr(dto.IntValue(req.Duration))
+	} else if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
 	}
 

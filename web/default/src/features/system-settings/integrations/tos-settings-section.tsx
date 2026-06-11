@@ -25,6 +25,8 @@ const tosSchema = z.object({
   TosRegion: z.string(),
   TosBucket: z.string(),
   TosEndpoint: z.string(),
+  TosPublicRead: z.boolean(),
+  TosCustomDomain: z.string(),
 })
 
 type TosFormValues = z.infer<typeof tosSchema>
@@ -52,6 +54,8 @@ export function TosSettingsSection({ defaultValues }: TosSettingsSectionProps) {
       'TosRegion',
       'TosBucket',
       'TosEndpoint',
+      'TosPublicRead',
+      'TosCustomDomain',
     ]
 
     for (const key of keys) {
@@ -168,6 +172,44 @@ export function TosSettingsSection({ defaultValues }: TosSettingsSectionProps) {
                 </FormControl>
                 <FormDescription>
                   {t('TOS endpoint URL')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='TosPublicRead'
+            render={({ field }) => (
+              <FormItem className='flex items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>{t('Public Read')}</FormLabel>
+                  <FormDescription>
+                    {t('Upload objects with public-read ACL so upstream model services (Ark, Seedance, etc.) can access files directly via URL. Recommended when your bucket does not have a public read policy.')}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='TosCustomDomain'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Custom Domain')}</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder='https://assets.example.com' />
+                </FormControl>
+                <FormDescription>
+                  {t('Optional CDN or custom domain used to build file URLs (e.g. https://assets.example.com). Leave empty to use the default TOS bucket endpoint.')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

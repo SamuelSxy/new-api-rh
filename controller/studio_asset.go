@@ -171,6 +171,7 @@ func UploadUserAsset(c *gin.Context) {
 		}
 	}
 
+
 	// For Ark API calls and direct external access (e.g. Seedance), an absolute
 	// publicly-accessible URL is required. localhost/127.x addresses cannot be
 	// reached by external services, so we skip Ark registration in that case but
@@ -181,38 +182,41 @@ func UploadUserAsset(c *gin.Context) {
 		strings.HasPrefix(serverAddr, "https://localhost") ||
 		strings.HasPrefix(serverAddr, "http://127.") ||
 		strings.HasPrefix(serverAddr, "https://127.")
+	arkCredsConfigured := system_setting.ArkAssetAccessKey != "" && system_setting.ArkAssetSecretKey != ""
 
 	var arkAssetId, arkAssetUri string
-	if !arkAddrInvalid {
+	var arkCallErr error
+	if !arkAddrInvalid && arkCredsConfigured {
+		// Build an absolute URL for Ark. sourceURL is usually relative, but can
+		// already be absolute when TOS is enabled.
 		arkDownloadURL := sourceURL
-		if !strings.HasPrefix(arkDownloadURL, "https://") && !strings.HasPrefix(arkDownloadURL, "http://") {
+		if !strings.HasPrefix(sourceURL, "http://") && !strings.HasPrefix(sourceURL, "https://") {
 			arkDownloadURL = serverAddr + sourceURL
 		}
-		var arkErr error
-		arkAssetId, arkAssetUri, arkErr = service.ArkCreateAsset(
+		arkAssetId, arkAssetUri, arkCallErr = service.ArkCreateAsset(
 			name,
 			arkDownloadURL,
 			assetType,
 			system_setting.ArkAssetProjectName,
 			system_setting.ArkAssetGroupId,
 		)
-		if arkErr != nil {
+		if arkCallErr != nil {
 			// ArkCreateAsset already sets arkAssetUri = arkDownloadURL on error,
 			// so external services can still attempt to use the public URL directly.
-			common.SysError(fmt.Sprintf("ark asset register failed: user_id=%d file=%s err=%v", userId, storedFileName, arkErr))
+			common.SysError(fmt.Sprintf("ark asset register failed: user_id=%d file=%s err=%v", userId, storedFileName, arkCallErr))
 		}
-	} else if system_setting.ArkAssetAccessKey != "" && system_setting.ArkAssetSecretKey != "" {
+	} else if arkAddrInvalid && arkCredsConfigured {
 		common.SysError(fmt.Sprintf("ark asset registration skipped: ServerAddress is localhost/empty; configure a public ServerAddress to enable Ark asset registration (user_id=%d)", userId))
 	}
 
 	arkStatus := ""
 	if arkAssetId != "" {
 		arkStatus = "Processing"
-	} else if arkAddrInvalid {
-		// Server address is localhost or not configured — Ark registration skipped.
+	} else if arkAddrInvalid || !arkCredsConfigured {
+		// Ark registration skipped: server address is invalid/localhost, or credentials not configured.
 		arkStatus = "Skipped"
-	} else if arkAssetUri != sourceURL {
-		// ArkCreateAsset returned the original URL on error, meaning registration failed.
+	} else if arkCallErr != nil {
+		// Credentials configured and server address valid, but Ark API call failed.
 		arkStatus = "Failed"
 	}
 

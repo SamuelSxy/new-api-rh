@@ -410,11 +410,26 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			studioRoute.GET("/models", controller.GetStudioModels)
 			studioRoute.GET("/form-schemas", controller.GetStudioFormSchemas)
-			// Asset library
-			studioRoute.POST("/assets", controller.UploadUserAsset)
-			studioRoute.GET("/assets", controller.ListUserAssets)
-			studioRoute.GET("/assets/:id/ark-status", controller.SyncUserAssetArkStatus)
-			studioRoute.DELETE("/assets/:id", controller.DeleteUserAsset)
+		}
+
+		studioAssetRoute := apiRouter.Group("/studio")
+		studioAssetRoute.Use(middleware.TokenOrUserAuth())
+		{
+			// Asset library: support both dashboard session and API token (apike)
+			studioAssetRoute.POST("/assets", controller.UploadUserAsset)
+			studioAssetRoute.GET("/assets", controller.ListUserAssets)
+			studioAssetRoute.GET("/assets/:id/ark-status", controller.SyncUserAssetArkStatus)
+			studioAssetRoute.DELETE("/assets/:id", controller.DeleteUserAsset)
+		}
+
+		// /api/assets aliases (same as /api/studio/assets, documented public API)
+		assetRoute := apiRouter.Group("")
+		assetRoute.Use(middleware.TokenOrUserAuth())
+		{
+			assetRoute.POST("/assets", controller.UploadUserAsset)
+			assetRoute.GET("/assets", controller.ListUserAssets)
+			assetRoute.GET("/assets/:id/ark-status", controller.SyncUserAssetArkStatus)
+			assetRoute.DELETE("/assets/:id", controller.DeleteUserAsset)
 		}
 
 		studioAdminRoute := apiRouter.Group("/studio/admin")

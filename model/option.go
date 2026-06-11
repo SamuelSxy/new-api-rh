@@ -52,7 +52,7 @@ func InitOptionMap() {
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
 	common.OptionMap["TaskEnabled"] = strconv.FormatBool(common.TaskEnabled)
-common.OptionMap["StudioEnabled"] = strconv.FormatBool(common.StudioEnabled)
+	common.OptionMap["StudioEnabled"] = strconv.FormatBool(common.StudioEnabled)
 	common.OptionMap["DataExportEnabled"] = strconv.FormatBool(common.DataExportEnabled)
 	common.OptionMap["ChannelDisableThreshold"] = strconv.FormatFloat(common.ChannelDisableThreshold, 'f', -1, 64)
 	common.OptionMap["EmailDomainRestrictionEnabled"] = strconv.FormatBool(common.EmailDomainRestrictionEnabled)
@@ -86,6 +86,8 @@ common.OptionMap["StudioEnabled"] = strconv.FormatBool(common.StudioEnabled)
 	common.OptionMap["TosRegion"] = system_setting.TosRegion
 	common.OptionMap["TosBucket"] = system_setting.TosBucket
 	common.OptionMap["TosEndpoint"] = system_setting.TosEndpoint
+	common.OptionMap["TosPublicRead"] = strconv.FormatBool(system_setting.TosPublicRead)
+	common.OptionMap["TosCustomDomain"] = system_setting.TosCustomDomain
 	common.OptionMap["MediakitEnabled"] = strconv.FormatBool(system_setting.MediakitEnabled)
 	common.OptionMap["MediakitApiKey"] = system_setting.MediakitApiKey
 	common.OptionMap["MediakitToolVersion"] = system_setting.MediakitToolVersion
@@ -343,6 +345,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.StudioEnabled = boolValue
 		case "TosEnabled":
 			system_setting.TosEnabled = boolValue
+		case "TosPublicRead":
+			system_setting.TosPublicRead = boolValue
 		case "MediakitEnabled":
 			system_setting.MediakitEnabled = boolValue
 		case "DataExportEnabled":
@@ -377,6 +381,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SMTPForceAuthLogin = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
+
 		case "DefaultUseAutoGroup":
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
@@ -423,6 +428,8 @@ func updateOptionMap(key string, value string) (err error) {
 		system_setting.TosBucket = value
 	case "TosEndpoint":
 		system_setting.TosEndpoint = value
+	case "TosCustomDomain":
+		system_setting.TosCustomDomain = value
 	case "MediakitApiKey":
 		system_setting.MediakitApiKey = value
 	case "MediakitToolVersion":

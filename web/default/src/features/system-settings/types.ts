@@ -159,6 +159,8 @@ export type IntegrationSettings = {
   TosRegion: string
   TosBucket: string
   TosEndpoint: string
+  TosPublicRead: boolean
+  TosCustomDomain: string
   ChannelDisableThreshold: string
   QuotaRemindThreshold: string
   AutomaticDisableChannelEnabled: boolean
