@@ -429,6 +429,152 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+function buildVideoGenerationSample(lang: Lang, ctx: SampleContext): string {
+  const submitUrl = `${ctx.baseUrl}/v1/video/generations`
+  const pollUrl = `${ctx.baseUrl}/v1/video/generations/{task_id}`
+
+  if (lang === 'curl') {
+    const body = JSON.stringify(
+      {
+        model: ctx.modelName,
+        prompt: 'A cat running on a sunny meadow',
+        duration: 8,
+        metadata: { resolution: '720p', ratio: '16:9' },
+      },
+      null,
+      2
+    )
+    return [
+      `# Step 1: Submit video generation task`,
+      `curl -X POST ${submitUrl} \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      ``,
+      `# Step 2: Poll task status (replace {task_id} with the id from Step 1)`,
+      `curl ${pollUrl} \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}"`,
+    ].join('\n')
+  }
+
+  if (lang === 'python') {
+    return [
+      'import time',
+      'import requests',
+      '',
+      `BASE_URL = "${ctx.baseUrl}"`,
+      `API_KEY  = "<YOUR_API_KEY>"`,
+      `HEADERS  = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}`,
+      '',
+      '# Step 1: Submit video generation task',
+      'payload = {',
+      `    "model": "${ctx.modelName}",`,
+      '    "prompt": "A cat running on a sunny meadow",',
+      '    "duration": 8,',
+      '    "metadata": {"resolution": "720p", "ratio": "16:9"},',
+      '}',
+      `resp = requests.post(f"{BASE_URL}/v1/video/generations", json=payload, headers=HEADERS)`,
+      'task_id = resp.json()["task_id"]',
+      `print(f"Task submitted: {task_id}")`,
+      '',
+      '# Step 2: Poll until done',
+      'while True:',
+      `    r = requests.get(f"{BASE_URL}/v1/video/generations/{task_id}", headers=HEADERS)`,
+      '    data = r.json()',
+      '    status = data.get("status")',
+      '    print(f"Status: {status}  progress: {data.get(\'progress\', \'-\')}")',
+      '    if status == "succeeded":',
+      '        print("Video URL:", data["metadata"]["url"])',
+      '        break',
+      '    elif status == "failed":',
+      '        print("Error:", data.get("error", {}).get("message"))',
+      '        break',
+      '    time.sleep(5)',
+    ].join('\n')
+  }
+
+  if (lang === 'typescript') {
+    return [
+      `const BASE_URL = '${ctx.baseUrl}'`,
+      `const API_KEY  = process.env.${ctx.apiKeyEnv}`,
+      '',
+      `// Step 1: Submit video generation task`,
+      `const submitRes = await fetch(\`\${BASE_URL}/v1/video/generations\`, {`,
+      `  method: 'POST',`,
+      `  headers: {`,
+      `    Authorization: \`Bearer \${API_KEY}\`,`,
+      `    'Content-Type': 'application/json',`,
+      `  },`,
+      `  body: JSON.stringify({`,
+      `    model: '${ctx.modelName}',`,
+      `    prompt: 'A cat running on a sunny meadow',`,
+      `    duration: 8,`,
+      `    metadata: { resolution: '720p', ratio: '16:9' },`,
+      `  }),`,
+      `})`,
+      `const { task_id } = await submitRes.json()`,
+      `console.log('Task submitted:', task_id)`,
+      '',
+      `// Step 2: Poll until done`,
+      `while (true) {`,
+      `  const res = await fetch(\`\${BASE_URL}/v1/video/generations/\${task_id}\`, {`,
+      `    headers: { Authorization: \`Bearer \${API_KEY}\` },`,
+      `  })`,
+      `  const data = await res.json()`,
+      `  console.log(\`Status: \${data.status}  progress: \${data.progress ?? '-'}\`)`,
+      `  if (data.status === 'succeeded') {`,
+      `    console.log('Video URL:', data.metadata.url)`,
+      `    break`,
+      `  } else if (data.status === 'failed') {`,
+      `    console.error('Error:', data.error?.message)`,
+      `    break`,
+      `  }`,
+      `  await new Promise((r) => setTimeout(r, 5000))`,
+      `}`,
+    ].join('\n')
+  }
+
+  // JavaScript
+  return [
+    `const BASE_URL = '${ctx.baseUrl}'`,
+    `const API_KEY  = process.env.${ctx.apiKeyEnv}`,
+    '',
+    `// Step 1: Submit video generation task`,
+    `const submitRes = await fetch(\`\${BASE_URL}/v1/video/generations\`, {`,
+    `  method: 'POST',`,
+    `  headers: {`,
+    `    Authorization: \`Bearer \${API_KEY}\`,`,
+    `    'Content-Type': 'application/json',`,
+    `  },`,
+    `  body: JSON.stringify({`,
+    `    model: '${ctx.modelName}',`,
+    `    prompt: 'A cat running on a sunny meadow',`,
+    `    duration: 8,`,
+    `    metadata: { resolution: '720p', ratio: '16:9' },`,
+    `  }),`,
+    `})`,
+    `const { task_id } = await submitRes.json()`,
+    '',
+    `// Step 2: Poll until done`,
+    `let done = false`,
+    `while (!done) {`,
+    `  const res = await fetch(\`\${BASE_URL}/v1/video/generations/\${task_id}\`, {`,
+    `    headers: { Authorization: \`Bearer \${API_KEY}\` },`,
+    `  })`,
+    `  const data = await res.json()`,
+    `  if (data.status === 'succeeded') {`,
+    `    console.log('Video URL:', data.metadata.url)`,
+    `    done = true`,
+    `  } else if (data.status === 'failed') {`,
+    `    console.error('Error:', data.error?.message)`,
+    `    done = true`,
+    `  } else {`,
+    `    await new Promise((r) => setTimeout(r, 5000))`,
+    `  }`,
+    `}`,
+  ].join('\n')
+}
+
 function buildSample(
   lang: Lang,
   endpointType: string,
@@ -439,6 +585,7 @@ function buildSample(
   if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
     return buildEmbeddingSample(lang, ctx)
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
+  if (endpointType === 'seedance-video') return buildVideoGenerationSample(lang, ctx)
   return buildChatSample(lang, ctx)
 }
 

@@ -35,7 +35,7 @@ import {
   getEndpointTypeLabels,
   getQuotaTypeLabels,
 } from '../constants'
-import { parseTags } from '../lib/filters'
+import { parseTags, VIDEO_ENDPOINT_TYPES } from '../lib/filters'
 import type { PricingModel, PricingVendor } from '../types'
 
 type FilterOption = {
@@ -238,7 +238,12 @@ export function PricingSidebar(props: PricingSidebarProps) {
         label,
         count: countBy(
           props.models,
-          (model) => model.supported_endpoint_types?.includes(value) ?? false
+          (model) =>
+            value === ENDPOINT_TYPES.OPENAI_VIDEO
+              ? model.supported_endpoint_types?.some((t) =>
+                  VIDEO_ENDPOINT_TYPES.includes(t)
+                ) ?? false
+              : model.supported_endpoint_types?.includes(value) ?? false
         ),
       })),
   ]

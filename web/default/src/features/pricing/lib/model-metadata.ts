@@ -43,7 +43,7 @@ const TEXT_INPUT_ENDPOINTS = new Set([
 ])
 
 const IMAGE_OUTPUT_ENDPOINTS = new Set(['image-generation'])
-const VIDEO_OUTPUT_ENDPOINTS = new Set(['openai-video'])
+const VIDEO_OUTPUT_ENDPOINTS = new Set(['openai-video', 'seedance-video'])
 const EMBEDDING_ENDPOINTS = new Set(['embeddings', 'jina-rerank'])
 
 const REASONING_NAME_PATTERNS = [
@@ -259,7 +259,8 @@ function inferContextAndOutputs(
   }
   if (
     endpoints.includes('image-generation') ||
-    endpoints.includes('openai-video')
+    endpoints.includes('openai-video') ||
+    endpoints.includes('seedance-video')
   ) {
     return { context: 4_096, maxOutput: 0 }
   }

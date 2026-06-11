@@ -86,6 +86,16 @@ export function filterByQuotaType(
 }
 
 /**
+ * Endpoint types that all map to the "Video" filter option.
+ * When the user selects openai-video (Video), models with any of these
+ * endpoint types should be included.
+ */
+export const VIDEO_ENDPOINT_TYPES: string[] = [
+  ENDPOINT_TYPES.OPENAI_VIDEO,
+  ENDPOINT_TYPES.SEEDANCE_VIDEO,
+]
+
+/**
  * Filter models by endpoint type
  */
 export function filterByEndpointType(
@@ -93,6 +103,12 @@ export function filterByEndpointType(
   endpointType: string
 ): PricingModel[] {
   if (endpointType === ENDPOINT_TYPES.ALL) return models
+  // Selecting "Video" (openai-video) should also match all other video endpoint types
+  if (endpointType === ENDPOINT_TYPES.OPENAI_VIDEO) {
+    return models.filter((m) =>
+      m.supported_endpoint_types?.some((t) => VIDEO_ENDPOINT_TYPES.includes(t))
+    )
+  }
   return models.filter((m) =>
     m.supported_endpoint_types?.includes(endpointType)
   )

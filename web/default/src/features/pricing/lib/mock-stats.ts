@@ -229,7 +229,7 @@ const APP_TEMPLATES: Array<
 const PROFILE_BY_NAME = (name: string) => {
   const n = name.toLowerCase()
   if (/embed|rerank/.test(n)) return 'embedding'
-  if (/image|sora|veo|kling|pika|jimeng|dalle|imagen/.test(n)) return 'image'
+  if (/image|sora|veo|kling|pika|jimeng|dalle|imagen|seedance/.test(n)) return 'image'
   if (/whisper|tts|voice|audio/.test(n)) return 'audio'
   if (/o1|o3|o4|reasoning|thinking|deepseek-r/.test(n)) return 'reasoning'
   if (/flash|haiku|mini|small|nano|fast/.test(n)) return 'fast'
@@ -736,30 +736,85 @@ const IMAGE_PARAMS: SupportedParameter[] = [
 
 const VIDEO_PARAMS: SupportedParameter[] = [
   {
+    name: 'model',
+    type: 'string',
+    required: true,
+    descriptionKey: 'Model name to use for video generation',
+  },
+  {
     name: 'prompt',
     type: 'string',
     required: true,
-    descriptionKey: 'Text description of the desired video',
+    descriptionKey: 'Text description to guide video generation',
+  },
+  {
+    name: 'images',
+    type: 'array',
+    descriptionKey:
+      'Reference image URL array for image-to-video; supports http/https URLs or base64 data URLs',
   },
   {
     name: 'duration',
     type: 'integer',
-    range: '1 ~ 60',
+    defaultValue: 8,
+    range: '4 ~ 15',
     descriptionKey: 'Video length in seconds',
   },
   {
-    name: 'aspect_ratio',
+    name: 'metadata.resolution',
     type: 'enum',
-    enumValues: ['16:9', '9:16', '1:1'],
-    defaultValue: '16:9',
-    descriptionKey: 'Output aspect ratio',
+    enumValues: ['480p', '720p', '1080p'],
+    descriptionKey: 'Output resolution; also accepts 480/720/1080 (auto-normalised)',
   },
   {
-    name: 'fps',
+    name: 'metadata.ratio',
+    type: 'string',
+    descriptionKey: 'Aspect ratio, e.g. 16:9, 9:16, 1:1',
+  },
+  {
+    name: 'metadata.seed',
     type: 'integer',
-    range: '8 ~ 60',
-    defaultValue: 24,
-    descriptionKey: 'Frames per second',
+    descriptionKey: 'Random seed for reproducible generation',
+  },
+  {
+    name: 'metadata.camera_fixed',
+    type: 'boolean',
+    defaultValue: false,
+    descriptionKey: 'Lock the virtual camera during generation',
+  },
+  {
+    name: 'metadata.generate_audio',
+    type: 'boolean',
+    defaultValue: false,
+    descriptionKey: 'Generate background audio alongside the video',
+  },
+  {
+    name: 'metadata.watermark',
+    type: 'boolean',
+    defaultValue: false,
+    descriptionKey: 'Add a watermark to the output video',
+  },
+  {
+    name: 'metadata.return_last_frame',
+    type: 'boolean',
+    defaultValue: false,
+    descriptionKey: 'Return the last frame of the video as an image',
+  },
+  {
+    name: 'metadata.render_mode',
+    type: 'string',
+    descriptionKey: 'Rendering mode passed through to the upstream provider',
+  },
+  {
+    name: 'metadata.service_tier',
+    type: 'string',
+    descriptionKey: 'Service tier passed through to the upstream provider',
+  },
+  {
+    name: 'metadata.content',
+    type: 'array',
+    descriptionKey:
+      'Full content array (image_url / video_url / text items) for image-to-video or video-reference scenarios',
   },
 ]
 
@@ -775,7 +830,9 @@ function apiCategoryOf(model: PricingModel): ApiCategory {
   const profile = PROFILE_BY_NAME(model.model_name)
   if (profile === 'embedding' || profile === 'reasoning') return profile
   if (profile === 'image') {
-    return /sora|veo|kling|pika|video|wan-|hunyuanvideo/i.test(model.model_name)
+    const endpoints = model.supported_endpoint_types ?? []
+    if (endpoints.includes('seedance-video')) return 'video'
+    return /sora|veo|kling|pika|video|wan-|seedance-|hunyuanvideo/i.test(model.model_name)
       ? 'video'
       : 'image'
   }

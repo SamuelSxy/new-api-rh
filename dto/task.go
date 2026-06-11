@@ -47,9 +47,9 @@ type TaskDto struct {
 	StartTime  int64           `json:"start_time"`
 	FinishTime int64           `json:"finish_time"`
 	Progress   string          `json:"progress"`
-	Properties any             `json:"properties"`
+	Properties any             `json:"properties,omitempty"`
 	Username   string          `json:"username,omitempty"`
-	Data       json.RawMessage `json:"data"`
+	Data       json.RawMessage `json:"data,omitempty"`
 }
 
 type FetchReq struct {

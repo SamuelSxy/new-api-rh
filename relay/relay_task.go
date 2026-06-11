@@ -539,6 +539,15 @@ func mapTaskStatusToSimple(status model.TaskStatus) string {
 }
 
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {
+	// seedance 模型（origin_model_name 含 "seedance"）隐藏 properties 和 data，
+	// 避免对外暴露 upstream_model_name / 480p 分辨率等内部实现细节。
+	isSeedanceModel := strings.Contains(task.Properties.OriginModelName, "seedance")
+	var properties any = task.Properties
+	rawData := task.Data
+	if isSeedanceModel {
+		properties = nil
+		rawData = nil
+	}
 	return &dto.TaskDto{
 		ID:         task.ID,
 		CreatedAt:  task.CreatedAt,
@@ -557,8 +566,8 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		StartTime:  task.StartTime,
 		FinishTime: task.FinishTime,
 		Progress:   task.Progress,
-		Properties: task.Properties,
+		Properties: properties,
 		Username:   task.Username,
-		Data:       task.Data,
+		Data:       rawData,
 	}
 }

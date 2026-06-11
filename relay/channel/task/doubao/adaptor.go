@@ -544,12 +544,20 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		return nil, errors.Wrap(err, "unmarshal doubao task data failed")
 	}
 
+	// 优先使用 PrivateData.ResultURL（Mediakit 超分后的 URL），
+	// fall 模型走超分路径时 task.Data 里的 video_url 是 480p 原始 TOS 地址（短期签名），
+	// 超分完成后 PrivateData.ResultURL 才是有效的最终视频地址。
+	videoURL := originTask.GetResultURL()
+	if videoURL == "" {
+		videoURL = dResp.Content.VideoURL
+	}
+
 	openAIVideo := dto.NewOpenAIVideo()
 	openAIVideo.ID = originTask.TaskID
 	openAIVideo.TaskID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	openAIVideo.SetMetadata("url", videoURL)
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName

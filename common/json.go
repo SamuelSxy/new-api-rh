@@ -19,7 +19,18 @@ func DecodeJson(reader io.Reader, v any) error {
 }
 
 func Marshal(v any) ([]byte, error) {
-	return json.Marshal(v)
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	// json.Encoder.Encode 末尾会追加换行符，去掉
+	b := buf.Bytes()
+	if len(b) > 0 && b[len(b)-1] == '\n' {
+		b = b[:len(b)-1]
+	}
+	return b, nil
 }
 
 func GetJsonType(data json.RawMessage) string {
