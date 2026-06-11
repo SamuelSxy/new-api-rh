@@ -342,6 +342,71 @@ func updatePricing() {
 		pricingMap = append(pricingMap, pricing)
 	}
 
+	// 追加 @variant 分辨率定价条目（如 doubao-seedance-2-0-fall@720p）
+	// 这些条目不是真实的 channel ability，但有独立的价格配置，需要在前端展示。
+	basePricingIndex := make(map[string]int, len(pricingMap))
+	for i, p := range pricingMap {
+		basePricingIndex[p.ModelName] = i
+	}
+	addedVariants := make(map[string]bool)
+	// 扫描所有 ModelRatio 条目
+	for variantName, variantRatio := range ratio_setting.GetModelRatioCopy() {
+		atIdx := strings.Index(variantName, "@")
+		if atIdx < 0 {
+			continue
+		}
+		baseName := variantName[:atIdx]
+		baseIdx, ok := basePricingIndex[baseName]
+		if !ok {
+			continue
+		}
+		if addedVariants[variantName] {
+			continue
+		}
+		base := pricingMap[baseIdx]
+		variant := Pricing{
+			ModelName:              variantName,
+			EnableGroup:            base.EnableGroup,
+			SupportedEndpointTypes: base.SupportedEndpointTypes,
+			VendorID:               base.VendorID,
+			Tags:                   base.Tags,
+			QuotaType:              0,
+			ModelRatio:             variantRatio,
+			CompletionRatio:        ratio_setting.GetCompletionRatio(variantName),
+			BillingMode:            base.BillingMode,
+		}
+		pricingMap = append(pricingMap, variant)
+		addedVariants[variantName] = true
+	}
+	// 扫描所有 ModelPrice 条目（fix-price 变体）
+	for variantName, variantPrice := range ratio_setting.GetModelPriceCopy() {
+		atIdx := strings.Index(variantName, "@")
+		if atIdx < 0 {
+			continue
+		}
+		baseName := variantName[:atIdx]
+		baseIdx, ok := basePricingIndex[baseName]
+		if !ok {
+			continue
+		}
+		if addedVariants[variantName] {
+			continue
+		}
+		base := pricingMap[baseIdx]
+		variant := Pricing{
+			ModelName:              variantName,
+			EnableGroup:            base.EnableGroup,
+			SupportedEndpointTypes: base.SupportedEndpointTypes,
+			VendorID:               base.VendorID,
+			Tags:                   base.Tags,
+			QuotaType:              1,
+			ModelPrice:             variantPrice,
+			BillingMode:            base.BillingMode,
+		}
+		pricingMap = append(pricingMap, variant)
+		addedVariants[variantName] = true
+	}
+
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {
 		pricingMap[0].PricingVersion = "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"

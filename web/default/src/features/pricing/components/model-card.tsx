@@ -29,7 +29,7 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isDurationBillingModel, isTokenBasedModel } from '../lib/model-helpers'
+import { extractVariantLabel, isDurationBillingModel, isTokenBasedModel } from '../lib/model-helpers'
 import { formatPerSecondPrice, formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -139,6 +139,29 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     {t('Dynamic Pricing')}
                   </span>
                 )
+              ) : (props.model.variants?.length ?? 0) > 0 ? (
+                <>
+                  <span className='text-muted-foreground whitespace-nowrap'>
+                    <span className='text-foreground font-mono font-semibold'>
+                      {formatPerSecondPrice(props.model, showRechargePrice, priceRate, usdExchangeRate)}
+                    </span>
+                    {isDurationBillingModel(props.model) ? '/s' : null}
+                  </span>
+                  {props.model.variants!.map((v) => (
+                    <span
+                      key={v.model_name}
+                      className='text-muted-foreground whitespace-nowrap'
+                    >
+                      <span className='text-foreground/60 font-medium'>
+                        {extractVariantLabel(v.model_name ?? '')}
+                      </span>{' '}
+                      <span className='text-foreground font-mono font-semibold'>
+                        {formatPerSecondPrice(v, showRechargePrice, priceRate, usdExchangeRate)}
+                      </span>
+                      {isDurationBillingModel(v) ? '/s' : null}
+                    </span>
+                  ))}
+                </>
               ) : isTokenBased ? (
                 <>
                   <span className='text-muted-foreground whitespace-nowrap'>

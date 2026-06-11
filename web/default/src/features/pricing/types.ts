@@ -57,6 +57,12 @@ export type PricingModel = {
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
+   * Resolution/quality variant models grouped under this base model.
+   * E.g. doubao-seedance-2-0-fall has @720p and @1080p variants.
+   * Populated client-side by groupModelVariants(); never returned by the backend directly.
+   */
+  variants?: PricingModel[]
+  /**
    * Optional model metadata fields. These are not yet returned by the backend
    * and are populated client-side from {@link inferModelMetadata}.
    * When the backend ships these fields, the inference layer becomes a

@@ -38,3 +38,5 @@ skills-lock.json
 .playwright-mcp
 
 deploy.sh
+docs/seedance/素材库.md
+docs/seedance/seedance2-api.md

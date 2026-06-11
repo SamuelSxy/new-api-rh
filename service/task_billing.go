@@ -47,15 +47,16 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
-	// 非按次计费（token 制）任务：写入 model_ratio，让前端展示为倍率预扣而非"按次"
-	if !common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
+	// 非按次计费（token 制）任务：写入 model_ratio，让前端展示为倍率预扣而非"按次"。
+	// 按秒计费模型跳过此块：info.PriceData.ModelRatio 已在 EstimateBilling 中被分辨率专属倍率
+	// 覆盖，不应重新拉取基础倍率覆盖；且 model_price=-1 需保留，以让前端选择正确的渲染路径。
+	if !common.StringsContains(constant.TaskPricePatches, info.OriginModelName) &&
+		!billing_setting.IsDurationBillingModel(info.OriginModelName) {
 		if modelRatio, hasRatio, _ := ratio_setting.GetModelRatio(info.OriginModelName); hasRatio {
 			other["model_ratio"] = modelRatio
 			delete(other, "model_price")
-			if !billing_setting.IsDurationBillingModel(info.OriginModelName) {
-				// token 制：添加 completion_ratio 供前端展示输入/输出价格
-				other["completion_ratio"] = 1.0
-			}
+			// token 制：添加 completion_ratio 供前端展示输入/输出价格
+			other["completion_ratio"] = 1.0
 		}
 	}
 	// 按秒计费：写入 billing_mode 和估算秒数供前端正确渲染

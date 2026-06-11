@@ -60,9 +60,14 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
+import {
+  extractVariantLabel,
+  getAvailableGroups,
+  isDurationBillingModel,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
-import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import { formatFixedPrice, formatGroupPrice, formatPerSecondGroupPrice, formatPerSecondPrice } from '../lib/price'
 import type {
   Modality,
   ModelCapability,
@@ -477,25 +482,184 @@ function PriceSection(props: {
     )
   }
 
-  if (!isTokenBased) {
+  // Duration-billing (per-second) models — show base price + resolution variants
+  if (isDurationBillingModel(props.model)) {
+    const variants = props.model.variants ?? []
+    const fmtOpts = {
+      showWithRecharge: props.showRechargePrice,
+      priceRate: props.priceRate,
+      usdExchangeRate: props.usdExchangeRate,
+    } as const
     return (
       <section>
         <SectionTitle>{t('Base Price')}</SectionTitle>
-        <div className='flex items-baseline justify-between'>
-          <span className='text-muted-foreground text-sm'>
-            {t('Per request')}
-          </span>
-          <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-            {formatFixedPrice(
-              props.model,
-              baseGroupKey,
-              props.showRechargePrice,
-              props.priceRate,
-              props.usdExchangeRate,
-              baseGroupRatioMap
-            )}
-          </span>
+        {variants.length > 0 ? (
+          <div className='rounded-lg border'>
+            <div className='divide-y'>
+              <div className='flex items-center justify-between px-3 py-2.5'>
+                <span className='text-muted-foreground text-sm'>{t('default')}</span>
+                <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                  {formatPerSecondPrice(
+                    props.model,
+                    fmtOpts.showWithRecharge,
+                    fmtOpts.priceRate,
+                    fmtOpts.usdExchangeRate
+                  )}
+                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                </span>
+              </div>
+              {variants.map((v) => (
+                <div
+                  key={v.model_name}
+                  className='flex items-center justify-between px-3 py-2.5'
+                >
+                  <span className='text-muted-foreground text-sm font-medium'>
+                    {extractVariantLabel(v.model_name ?? '')}
+                  </span>
+                  <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                    {formatPerSecondPrice(
+                      v,
+                      fmtOpts.showWithRecharge,
+                      fmtOpts.priceRate,
+                      fmtOpts.usdExchangeRate
+                    )}
+                    <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className='bg-muted/20 rounded-lg border p-3'>
+            <div className='text-muted-foreground text-xs'>{t('Per second')}</div>
+            <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+              {formatPerSecondPrice(
+                props.model,
+                fmtOpts.showWithRecharge,
+                fmtOpts.priceRate,
+                fmtOpts.usdExchangeRate
+              )}
+              <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+            </div>
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  // Models with resolution/quality variants — works for any billing mode
+  if ((props.model.variants?.length ?? 0) > 0) {
+    const variants = props.model.variants!
+    const isDuration = isDurationBillingModel(props.model)
+    const fmtOpts = {
+      showWithRecharge: props.showRechargePrice,
+      priceRate: props.priceRate,
+      usdExchangeRate: props.usdExchangeRate,
+    } as const
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <div className='rounded-lg border'>
+          <div className='divide-y'>
+            <div className='flex items-center justify-between px-3 py-2.5'>
+              <span className='text-muted-foreground text-sm'>{t('default')}</span>
+              <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                {formatPerSecondPrice(
+                  props.model,
+                  fmtOpts.showWithRecharge,
+                  fmtOpts.priceRate,
+                  fmtOpts.usdExchangeRate
+                )}
+                {isDuration && (
+                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                )}
+              </span>
+            </div>
+            {variants.map((v) => (
+              <div
+                key={v.model_name}
+                className='flex items-center justify-between px-3 py-2.5'
+              >
+                <span className='text-muted-foreground text-sm font-medium'>
+                  {extractVariantLabel(v.model_name ?? '')}
+                </span>
+                <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                  {formatPerSecondPrice(
+                    v,
+                    fmtOpts.showWithRecharge,
+                    fmtOpts.priceRate,
+                    fmtOpts.usdExchangeRate
+                  )}
+                  {isDurationBillingModel(v) && (
+                    <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
+      </section>
+    )
+  }
+
+
+  if (!isTokenBased) {
+    const variants = props.model.variants ?? []
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        {variants.length > 0 ? (
+          <div className='rounded-lg border'>
+            <div className='divide-y'>
+              <div className='flex items-center justify-between px-3 py-2.5'>
+                <span className='text-muted-foreground text-sm'>{t('default')}</span>
+                <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                  {formatFixedPrice(
+                    props.model,
+                    baseGroupKey,
+                    props.showRechargePrice,
+                    props.priceRate,
+                    props.usdExchangeRate,
+                    baseGroupRatioMap
+                  )}
+                </span>
+              </div>
+              {variants.map((v) => (
+                <div key={v.model_name} className='flex items-center justify-between px-3 py-2.5'>
+                  <span className='text-muted-foreground text-sm font-medium'>
+                    {extractVariantLabel(v.model_name ?? '')}
+                  </span>
+                  <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                    {formatFixedPrice(
+                      v,
+                      baseGroupKey,
+                      props.showRechargePrice,
+                      props.priceRate,
+                      props.usdExchangeRate,
+                      baseGroupRatioMap
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className='flex items-baseline justify-between'>
+            <span className='text-muted-foreground text-sm'>
+              {isDurationBillingModel(props.model) ? t('Per second') : t('Per request')}
+            </span>
+            <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+              {formatFixedPrice(
+                props.model,
+                baseGroupKey,
+                props.showRechargePrice,
+                props.priceRate,
+                props.usdExchangeRate,
+                baseGroupRatioMap
+              )}
+            </span>
+          </div>
+        )}
       </section>
     )
   }
@@ -763,6 +927,84 @@ function GroupPricingSection(props: {
           <p className='text-muted-foreground/40 mt-1.5 text-[10px]'>
             {t('Prices shown per')} {tokenUnitLabel} tokens
           </p>
+        </div>
+      </section>
+    )
+  }
+
+  if (isDurationBillingModel(props.model) || (props.model.variants?.length ?? 0) > 0) {
+    const variants = props.model.variants ?? []
+    const variantHeaders = [
+      { label: t('default'), model: props.model },
+      ...variants.map((v) => ({
+        label: extractVariantLabel(v.model_name ?? ''),
+        model: v,
+      })),
+    ]
+    return (
+      <section>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <div className='-mx-4 overflow-x-auto sm:mx-0'>
+          <Table className='text-sm'>
+            <TableHeader>
+              <TableRow className='hover:bg-transparent'>
+                <TableHead className={thClass}>{t('Group')}</TableHead>
+                <TableHead className={thClass}>{t('Ratio')}</TableHead>
+                {variantHeaders.map((vh) => (
+                  <TableHead
+                    key={vh.label}
+                    className={`${thClass} text-right`}
+                  >
+                    {vh.label}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {availableGroups.map((group) => {
+                const ratio = props.groupRatio[group] || 1
+                return (
+                  <TableRow key={group}>
+                    <TableCell className='py-2.5'>
+                      <GroupBadge group={group} size='sm' />
+                    </TableCell>
+                    <TableCell className='text-muted-foreground py-2.5 font-mono'>
+                      {ratio}x
+                    </TableCell>
+                    {variantHeaders.map((vh) => (
+                      <TableCell
+                        key={vh.label}
+                        className='py-2.5 text-right font-mono'
+                      >
+                        {isDurationBillingModel(vh.model) ? (
+                          <>
+                            {formatPerSecondGroupPrice(
+                              vh.model,
+                              ratio,
+                              showRechargePrice,
+                              props.priceRate,
+                              props.usdExchangeRate
+                            )}
+                            <span className='text-muted-foreground/40 ml-0.5 text-[11px]'>/s</span>
+                          </>
+                        ) : (
+                          formatFixedPrice(
+                            vh.model,
+                            group,
+                            showRechargePrice,
+                            props.priceRate,
+                            props.usdExchangeRate,
+                            props.groupRatio
+                          )
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
         </div>
       </section>
     )

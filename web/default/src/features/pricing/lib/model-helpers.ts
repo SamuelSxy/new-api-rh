@@ -59,3 +59,52 @@ export function isTokenBasedModel(model: PricingModel): boolean {
 export function isDurationBillingModel(model: PricingModel): boolean {
   return model.billing_mode === 'per-second'
 }
+
+/**
+ * Check if a model is a named variant (model_name contains '@')
+ */
+export function isVariantModel(model: PricingModel): boolean {
+  return (model.model_name ?? '').includes('@')
+}
+
+/**
+ * Get the base model name (strips @suffix, e.g. "model@720p" → "model")
+ */
+export function getBaseModelName(modelName: string): string {
+  const at = modelName.indexOf('@')
+  return at === -1 ? modelName : modelName.slice(0, at)
+}
+
+/**
+ * Extract the variant label (part after '@', e.g. "model@720p" → "720p")
+ */
+export function extractVariantLabel(modelName: string): string {
+  const at = modelName.indexOf('@')
+  return at === -1 ? '' : modelName.slice(at + 1)
+}
+
+/**
+ * Group @variant models under their base model's `variants` field.
+ * Variant models (those containing '@' whose base exists) are removed from the
+ * top-level list and attached to their parent. Preserves original ordering.
+ */
+export function groupModelVariants(models: PricingModel[]): PricingModel[] {
+  const baseMap = new Map<string, PricingModel>()
+  for (const model of models) {
+    if (!isVariantModel(model)) {
+      baseMap.set(model.model_name ?? '', { ...model })
+    }
+  }
+  for (const model of models) {
+    if (isVariantModel(model)) {
+      const baseName = getBaseModelName(model.model_name ?? '')
+      const base = baseMap.get(baseName)
+      if (base) {
+        base.variants = [...(base.variants ?? []), model]
+      }
+    }
+  }
+  return models
+    .filter((m) => !isVariantModel(m))
+    .map((m) => baseMap.get(m.model_name ?? '') ?? m)
+}

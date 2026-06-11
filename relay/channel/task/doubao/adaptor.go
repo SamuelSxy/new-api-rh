@@ -19,6 +19,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -136,6 +137,38 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
+// resolveResolutionFromRequest 从 TaskSubmitReq 的 metadata 中提取并归一化分辨率。
+func resolveResolutionFromRequest(req relaycommon.TaskSubmitReq) string {
+	if req.Metadata == nil {
+		return ""
+	}
+	v, ok := req.Metadata["resolution"]
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return normalizeDoubaoResolution(s)
+}
+
+// applyResolutionPricing 若管理员为超分模型配置了 @resolution 专属价格
+// （如 doubao-seedance-2-0-fall@1080p），则用该价格覆盖 info.PriceData 中的基础定价。
+// 这样后续的预扣和 AdjustBillingOnComplete 均使用分辨率匹配的费率。
+func applyResolutionPricing(info *relaycommon.RelayInfo, resolution string) {
+	if resolution == "" || !mediakitEnhanceModels[info.OriginModelName] {
+		return
+	}
+	qualifiedName := info.OriginModelName + "@" + resolution
+	if resRatio, ok, _ := ratio_setting.GetModelRatio(qualifiedName); ok {
+		info.PriceData.ModelRatio = resRatio
+		info.PriceData.UsePrice = false
+		info.PriceData.Quota = int(resRatio * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
+	} else if resPrice, ok2 := ratio_setting.GetModelPrice(qualifiedName, false); ok2 {
+		info.PriceData.ModelPrice = resPrice
+		info.PriceData.UsePrice = true
+		info.PriceData.Quota = int(resPrice * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
+	}
+}
+
 // EstimateBilling 根据模型计费模式返回 OtherRatios。
 // 对于按秒计费模型，返回 video_input 折扣 + seconds（估算秒数）。
 // 对于普通视频输入，仅返回 video_input 折扣。
@@ -155,6 +188,8 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 			ratios["seconds"] = float64(sec)
 		}
 		// sec <= 0 表示时长未知，不预扣时长费，AdjustBillingOnComplete 完成后补收
+		// 分辨率专用定价：若管理员配置了 @resolution 专属价格则覆盖基础倍率
+		applyResolutionPricing(info, resolveResolutionFromRequest(req))
 		// 也检查是否有视频输入折扣
 		if hasVideoInMetadata(req.Metadata) {
 			if r, ok2 := GetVideoInputRatio(info.OriginModelName); ok2 {

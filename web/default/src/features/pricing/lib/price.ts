@@ -328,3 +328,22 @@ export function formatPerSecondPrice(
     abbreviate: false,
   })
 }
+
+/**
+ * Format per-second price using a specific group ratio (for per-group pricing tables).
+ */
+export function formatPerSecondGroupPrice(
+  model: PricingModel,
+  groupRatio: number,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1
+): string {
+  let priceInUSD = model.model_ratio * groupRatio
+  priceInUSD = applyRechargeRate(priceInUSD, showWithRecharge, priceRate, usdExchangeRate)
+  return formatCurrencyFromUSD(priceInUSD, {
+    digitsLarge: 4,
+    digitsSmall: 6,
+    abbreviate: false,
+  })
+}
