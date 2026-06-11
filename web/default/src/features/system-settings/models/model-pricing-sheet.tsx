@@ -84,6 +84,7 @@ const createModelPricingSchema = (t: (key: string) => string) =>
     imageRatio: z.string().optional(),
     audioRatio: z.string().optional(),
     audioCompletionRatio: z.string().optional(),
+    videoInputRatio: z.string().optional(),
   })
 
 type ModelPricingFormValues = z.infer<
@@ -98,6 +99,7 @@ type LaneKey =
   | 'image'
   | 'audioInput'
   | 'audioOutput'
+  | 'videoInput'
 
 export type ModelRatioData = {
   name: string
@@ -109,6 +111,7 @@ export type ModelRatioData = {
   imageRatio?: string
   audioRatio?: string
   audioCompletionRatio?: string
+  videoInputRatio?: string
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
@@ -147,6 +150,7 @@ const EMPTY_LANE_PRICES: Record<LaneKey, string> = {
   image: '',
   audioInput: '',
   audioOutput: '',
+  videoInput: '',
 }
 
 const EMPTY_LANE_ENABLED: Record<LaneKey, boolean> = {
@@ -156,6 +160,7 @@ const EMPTY_LANE_ENABLED: Record<LaneKey, boolean> = {
   image: false,
   audioInput: false,
   audioOutput: false,
+  videoInput: false,
 }
 
 const ratioFieldByLane: Record<LaneKey, keyof ModelPricingFormValues> = {
@@ -165,6 +170,7 @@ const ratioFieldByLane: Record<LaneKey, keyof ModelPricingFormValues> = {
   image: 'imageRatio',
   audioInput: 'audioRatio',
   audioOutput: 'audioCompletionRatio',
+  videoInput: 'videoInputRatio',
 }
 
 const laneConfigs: Array<{
@@ -208,6 +214,12 @@ const laneConfigs: Array<{
     titleKey: 'Audio output price',
     descriptionKey: 'Token price for audio output.',
     placeholder: '15.11',
+  },
+  {
+    key: 'videoInput',
+    titleKey: 'Video input price',
+    descriptionKey: 'Token price for video input.',
+    placeholder: '46',
   },
 ]
 
@@ -258,6 +270,7 @@ function createInitialLaneState(data?: ModelRatioData | null) {
     image: deriveLanePrice(data.imageRatio, promptPrice),
     audioInput: audioInputPrice,
     audioOutput: deriveLanePrice(data.audioCompletionRatio, audioInputPrice),
+    videoInput: deriveLanePrice(data.videoInputRatio, promptPrice),
   }
 
   return {
@@ -270,6 +283,7 @@ function createInitialLaneState(data?: ModelRatioData | null) {
       image: hasValue(data.imageRatio),
       audioInput: hasValue(data.audioRatio),
       audioOutput: hasValue(data.audioCompletionRatio),
+      videoInput: hasValue(data.videoInputRatio),
     },
   }
 }
@@ -394,6 +408,14 @@ function buildPreviewRows(
           ? `$${lanePrices.audioOutput}`
           : t('Empty'),
     },
+    {
+      key: 'videoInput',
+      label: t('Video input price'),
+      value:
+        laneEnabled.videoInput && lanePrices.videoInput
+          ? `$${lanePrices.videoInput}`
+          : t('Empty'),
+    },
   ]
 }
 
@@ -468,6 +490,7 @@ export function ModelPricingEditorPanel({
       imageRatio: '',
       audioRatio: '',
       audioCompletionRatio: '',
+      videoInputRatio: '',
     },
   })
 
@@ -485,6 +508,7 @@ export function ModelPricingEditorPanel({
         imageRatio: editData.imageRatio || '',
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
+        videoInputRatio: editData.videoInputRatio || '',
       })
       setPricingMode(
         editData.billingMode === 'tiered_expr'
@@ -509,6 +533,7 @@ export function ModelPricingEditorPanel({
         imageRatio: '',
         audioRatio: '',
         audioCompletionRatio: '',
+        videoInputRatio: '',
       })
       setPricingMode('per-token')
       setBillingExpr('')
@@ -750,6 +775,7 @@ export function ModelPricingEditorPanel({
       imageRatio: values.imageRatio || '',
       audioRatio: values.audioRatio || '',
       audioCompletionRatio: values.audioCompletionRatio || '',
+      videoInputRatio: values.videoInputRatio || '',
     }
 
     if (pricingMode === 'tiered_expr') {

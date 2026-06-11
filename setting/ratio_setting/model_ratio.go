@@ -355,6 +355,7 @@ func InitRatioSettings() {
 	imageRatioMap.AddAll(defaultImageRatio)
 	audioRatioMap.AddAll(defaultAudioRatio)
 	audioCompletionRatioMap.AddAll(defaultAudioCompletionRatio)
+	videoInputRatioMap.AddAll(defaultVideoInputRatio)
 }
 
 func GetModelPriceMap() map[string]float64 {
@@ -667,9 +668,19 @@ func ModelRatio2JSONString() string {
 var defaultImageRatio = map[string]float64{
 	"gpt-image-1": 2,
 }
+
+// defaultVideoInputRatio 含视频输入折扣比率（含视频单价 / 不含视频单价）。
+// 管理员应将 ModelRatio 设置为"不含视频"的较高费率，
+// 系统在检测到视频输入时自动乘以此折扣。
+var defaultVideoInputRatio = map[string]float64{
+	"doubao-seedance-2-0-260128":      28.0 / 46.0, // ~0.6087
+	"doubao-seedance-2-0-fast-260128": 22.0 / 37.0, // ~0.5946
+}
+
 var imageRatioMap = types.NewRWMap[string, float64]()
 var audioRatioMap = types.NewRWMap[string, float64]()
 var audioCompletionRatioMap = types.NewRWMap[string, float64]()
+var videoInputRatioMap = types.NewRWMap[string, float64]()
 
 func ImageRatio2JSONString() string {
 	return imageRatioMap.MarshalJSONString()
@@ -725,6 +736,28 @@ func GetAudioRatioCopy() map[string]float64 {
 
 func GetAudioCompletionRatioCopy() map[string]float64 {
 	return audioCompletionRatioMap.ReadAll()
+}
+
+func VideoInputRatio2JSONString() string {
+	return videoInputRatioMap.MarshalJSONString()
+}
+
+func UpdateVideoInputRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(videoInputRatioMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetVideoInputRatio(name string) (float64, bool) {
+	ratio, ok := videoInputRatioMap.Get(name)
+	return ratio, ok
+}
+
+func ContainsVideoInputRatio(name string) bool {
+	_, ok := videoInputRatioMap.Get(name)
+	return ok
+}
+
+func GetVideoInputRatioCopy() map[string]float64 {
+	return videoInputRatioMap.ReadAll()
 }
 
 // 转换模型名，减少渠道必须配置各种带参数模型

@@ -114,6 +114,10 @@ function calculateTokenPrice(
             Number(model.audio_ratio) *
             Number(model.audio_completion_ratio)
         : NaN
+    case 'video_input':
+      return hasRatio(model.video_input_ratio)
+        ? base * Number(model.video_input_ratio)
+        : NaN
   }
 }
 
