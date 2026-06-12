@@ -30,6 +30,13 @@ func UpdateArkStatus(id int, status string) error {
 	return DB.Model(&UserAsset{}).Where("id = ?", id).Update("ark_status", status).Error
 }
 
+func UpdateArkStatusAndURI(id int, status, uri string) error {
+	return DB.Model(&UserAsset{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"ark_status":    status,
+		"ark_asset_uri": uri,
+	}).Error
+}
+
 func DeleteUserAsset(userId, id int) error {
 	return DB.Where("id = ? AND user_id = ?", id, userId).Delete(&UserAsset{}).Error
 }

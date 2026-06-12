@@ -43,6 +43,13 @@ var allowedVideoTypes = map[string]bool{
 	"video/x-msvideo": true,
 }
 
+func getArkAssetURIByStatus(status, assetID string) string {
+	if status == "Active" && assetID != "" {
+		return fmt.Sprintf("asset://%s", assetID)
+	}
+	return ""
+}
+
 // safeExtForMIME maps each allowed MIME type to a fixed, server-controlled extension.
 // This prevents attackers from storing files with dangerous extensions (e.g. .html)
 // by supplying a spoofed Content-Type header, which would allow stored-XSS via
@@ -184,7 +191,7 @@ func UploadUserAsset(c *gin.Context) {
 		strings.HasPrefix(serverAddr, "https://127.")
 	arkCredsConfigured := system_setting.ArkAssetAccessKey != "" && system_setting.ArkAssetSecretKey != ""
 
-	var arkAssetId, arkAssetUri string
+	var arkAssetId string
 	var arkCallErr error
 	if !arkAddrInvalid && arkCredsConfigured {
 		// Build an absolute URL for Ark. sourceURL is usually relative, but can
@@ -193,7 +200,7 @@ func UploadUserAsset(c *gin.Context) {
 		if !strings.HasPrefix(sourceURL, "http://") && !strings.HasPrefix(sourceURL, "https://") {
 			arkDownloadURL = serverAddr + sourceURL
 		}
-		arkAssetId, arkAssetUri, arkCallErr = service.ArkCreateAsset(
+		arkAssetId, _, arkCallErr = service.ArkCreateAsset(
 			name,
 			arkDownloadURL,
 			assetType,
@@ -201,8 +208,6 @@ func UploadUserAsset(c *gin.Context) {
 			system_setting.ArkAssetGroupId,
 		)
 		if arkCallErr != nil {
-			// ArkCreateAsset already sets arkAssetUri = arkDownloadURL on error,
-			// so external services can still attempt to use the public URL directly.
 			common.SysError(fmt.Sprintf("ark asset register failed: user_id=%d file=%s err=%v", userId, storedFileName, arkCallErr))
 		}
 	} else if arkAddrInvalid && arkCredsConfigured {
@@ -219,6 +224,7 @@ func UploadUserAsset(c *gin.Context) {
 		// Credentials configured and server address valid, but Ark API call failed.
 		arkStatus = "Failed"
 	}
+	arkAssetUri := getArkAssetURIByStatus(arkStatus, arkAssetId)
 
 	asset := &model.UserAsset{
 		UserId:      userId,
@@ -261,6 +267,9 @@ func ListUserAssets(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	for _, asset := range list {
+		asset.ArkAssetUri = getArkAssetURIByStatus(asset.ArkStatus, asset.ArkAssetId)
 	}
 
 	common.ApiSuccess(c, gin.H{
@@ -361,12 +370,23 @@ func SyncUserAssetArkStatus(c *gin.Context) {
 
 	// If no Ark credentials or asset not registered, return current status as-is.
 	if asset.ArkAssetId == "" {
+		if asset.ArkAssetUri != "" {
+			if err := model.UpdateArkStatusAndURI(asset.Id, asset.ArkStatus, ""); err != nil {
+				common.SysError(fmt.Sprintf("clear ark_asset_uri failed: id=%d err=%v", asset.Id, err))
+			}
+		}
 		common.ApiSuccess(c, gin.H{"ark_status": asset.ArkStatus})
 		return
 	}
 
 	// Already settled — skip the API call.
 	if asset.ArkStatus == "Active" || asset.ArkStatus == "Failed" {
+		expectedURI := getArkAssetURIByStatus(asset.ArkStatus, asset.ArkAssetId)
+		if asset.ArkAssetUri != expectedURI {
+			if err := model.UpdateArkStatusAndURI(asset.Id, asset.ArkStatus, expectedURI); err != nil {
+				common.SysError(fmt.Sprintf("normalize ark fields failed: id=%d err=%v", asset.Id, err))
+			}
+		}
 		common.ApiSuccess(c, gin.H{"ark_status": asset.ArkStatus})
 		return
 	}
@@ -378,9 +398,10 @@ func SyncUserAssetArkStatus(c *gin.Context) {
 		return
 	}
 
-	if status != asset.ArkStatus {
-		if err := model.UpdateArkStatus(asset.Id, status); err != nil {
-			common.SysError(fmt.Sprintf("update ark_status failed: id=%d err=%v", asset.Id, err))
+	expectedURI := getArkAssetURIByStatus(status, asset.ArkAssetId)
+	if status != asset.ArkStatus || asset.ArkAssetUri != expectedURI {
+		if err := model.UpdateArkStatusAndURI(asset.Id, status, expectedURI); err != nil {
+			common.SysError(fmt.Sprintf("update ark fields failed: id=%d err=%v", asset.Id, err))
 		}
 	}
 
