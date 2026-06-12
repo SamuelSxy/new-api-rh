@@ -32,6 +32,7 @@ type Pricing struct {
 	AudioRatio             *float64                `json:"audio_ratio,omitempty"`
 	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
 	VideoInputRatio        *float64                `json:"video_input_ratio,omitempty"`
+	VideoInputRatios       map[string]float64      `json:"video_input_ratios,omitempty"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
@@ -334,6 +335,22 @@ func updatePricing() {
 		}
 		if videoInputRatio, ok := ratio_setting.GetVideoInputRatio(model); ok {
 			pricing.VideoInputRatio = &videoInputRatio
+		}
+		// 收集分辨率专用视频输入倍率（如 model@720p、model@1080p）
+		{
+			prefix := model + "@"
+			var resRatios map[string]float64
+			for k, v := range ratio_setting.GetVideoInputRatioCopy() {
+				if strings.HasPrefix(k, prefix) {
+					if resRatios == nil {
+						resRatios = make(map[string]float64)
+					}
+					resRatios[k[len(prefix):]] = v
+				}
+			}
+			if len(resRatios) > 0 {
+				pricing.VideoInputRatios = resRatios
+			}
 		}
 		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {

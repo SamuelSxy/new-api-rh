@@ -59,11 +59,14 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 			other["completion_ratio"] = 1.0
 		}
 	}
-	// 按秒计费：写入 billing_mode 和估算秒数供前端正确渲染
+	// 按秒计费：写入 billing_mode、估算秒数和视频输入倍率供前端正确渲染
 	if billing_setting.IsDurationBillingModel(info.OriginModelName) {
 		other["billing_mode"] = billing_setting.BillingModePerSecond
 		if sec, ok := info.PriceData.OtherRatios["seconds"]; ok {
 			other["seconds"] = sec
+		}
+		if r, ok := info.PriceData.OtherRatios["video_input"]; ok {
+			other["video_input"] = r
 		}
 	}
 	if info.IsModelMapped {

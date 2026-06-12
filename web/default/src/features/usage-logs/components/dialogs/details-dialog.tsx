@@ -192,6 +192,18 @@ function BillingBreakdown(props: {
         value: `${fmtPrice(other.model_ratio)}/s`,
       })
     }
+    if (other.video_input != null && other.video_input !== 1) {
+      rows.push({
+        label: t('Video input multiplier'),
+        value: `${other.video_input.toFixed(4)}x`,
+      })
+      if (other.model_ratio != null) {
+        rows.push({
+          label: t('Effective $/s'),
+          value: `${fmtPrice(other.model_ratio * other.video_input)}/s`,
+        })
+      }
+    }
   } else {
     rows.push({ label: t('Billing Mode'), value: t('Per-token') })
     if (other.model_ratio != null) {

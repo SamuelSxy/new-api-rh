@@ -143,9 +143,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                 <>
                   <span className='text-muted-foreground whitespace-nowrap'>
                     <span className='text-foreground font-mono font-semibold'>
-                      {formatPerSecondPrice(props.model, showRechargePrice, priceRate, usdExchangeRate)}
+                      {isDurationBillingModel(props.model)
+                        ? formatPerSecondPrice(props.model, showRechargePrice, priceRate, usdExchangeRate)
+                        : formatPrice(props.model, 'input', tokenUnit, showRechargePrice, priceRate, usdExchangeRate)}
                     </span>
-                    {isDurationBillingModel(props.model) ? '/s' : null}
+                    {isDurationBillingModel(props.model) ? '/s' : `/${tokenUnitLabel}`}
                   </span>
                   {props.model.variants!.map((v) => (
                     <span
@@ -156,9 +158,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                         {extractVariantLabel(v.model_name ?? '')}
                       </span>{' '}
                       <span className='text-foreground font-mono font-semibold'>
-                        {formatPerSecondPrice(v, showRechargePrice, priceRate, usdExchangeRate)}
+                        {isDurationBillingModel(v)
+                          ? formatPerSecondPrice(v, showRechargePrice, priceRate, usdExchangeRate)
+                          : formatPrice(v, 'input', tokenUnit, showRechargePrice, priceRate, usdExchangeRate)}
                       </span>
-                      {isDurationBillingModel(v) ? '/s' : null}
+                      {isDurationBillingModel(v) ? '/s' : `/${tokenUnitLabel}`}
                     </span>
                   ))}
                 </>

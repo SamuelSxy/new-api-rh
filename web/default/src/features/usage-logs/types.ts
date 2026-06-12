@@ -145,6 +145,8 @@ export interface LogOtherData {
   matched_tier?: string
   // Per-second billing: estimated duration in seconds (stored in OtherRatios)
   seconds?: number
+  // Per-second billing with video input: video input multiplier
+  video_input?: number
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number

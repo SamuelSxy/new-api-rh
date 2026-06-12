@@ -495,35 +495,24 @@ function PriceSection(props: {
       priceRate: props.priceRate,
       usdExchangeRate: props.usdExchangeRate,
     } as const
+    const videoInputRatios = props.model.video_input_ratios ?? {}
+    const hasResolutionRatios = Object.keys(videoInputRatios).length > 0
+    const hasVideoInputRatio =
+      props.model.video_input_ratio != null && props.model.video_input_ratio !== 1
+    const showVideoInput = hasResolutionRatios || hasVideoInputRatio
+
     return (
-      <section>
-        <SectionTitle>{t('Base Price')}</SectionTitle>
-        {variants.length > 0 ? (
-          <div className='rounded-lg border'>
-            <div className='divide-y'>
-              <div className='flex items-center justify-between px-3 py-2.5'>
-                <span className='text-muted-foreground text-sm'>{t('default')}</span>
-                <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-                  {formatPerSecondPrice(
-                    props.model,
-                    fmtOpts.showWithRecharge,
-                    fmtOpts.priceRate,
-                    fmtOpts.usdExchangeRate
-                  )}
-                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
-                </span>
-              </div>
-              {variants.map((v) => (
-                <div
-                  key={v.model_name}
-                  className='flex items-center justify-between px-3 py-2.5'
-                >
-                  <span className='text-muted-foreground text-sm font-medium'>
-                    {extractVariantLabel(v.model_name ?? '')}
-                  </span>
+      <>
+        <section>
+          <SectionTitle>{t('Base Price')}</SectionTitle>
+          {variants.length > 0 ? (
+            <div className='rounded-lg border'>
+              <div className='divide-y'>
+                <div className='flex items-center justify-between px-3 py-2.5'>
+                  <span className='text-muted-foreground text-sm'>{t('default')}</span>
                   <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
                     {formatPerSecondPrice(
-                      v,
+                      props.model,
                       fmtOpts.showWithRecharge,
                       fmtOpts.priceRate,
                       fmtOpts.usdExchangeRate
@@ -531,24 +520,86 @@ function PriceSection(props: {
                     <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
                   </span>
                 </div>
-              ))}
+                {variants.map((v) => (
+                  <div
+                    key={v.model_name}
+                    className='flex items-center justify-between px-3 py-2.5'
+                  >
+                    <span className='text-muted-foreground text-sm font-medium'>
+                      {extractVariantLabel(v.model_name ?? '')}
+                    </span>
+                    <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                      {formatPerSecondPrice(
+                        v,
+                        fmtOpts.showWithRecharge,
+                        fmtOpts.priceRate,
+                        fmtOpts.usdExchangeRate
+                      )}
+                      <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className='bg-muted/20 rounded-lg border p-3'>
-            <div className='text-muted-foreground text-xs'>{t('Per second')}</div>
-            <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
-              {formatPerSecondPrice(
-                props.model,
-                fmtOpts.showWithRecharge,
-                fmtOpts.priceRate,
-                fmtOpts.usdExchangeRate
-              )}
-              <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+          ) : (
+            <div className='bg-muted/20 rounded-lg border p-3'>
+              <div className='text-muted-foreground text-xs'>{t('Per second')}</div>
+              <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+                {formatPerSecondPrice(
+                  props.model,
+                  fmtOpts.showWithRecharge,
+                  fmtOpts.priceRate,
+                  fmtOpts.usdExchangeRate
+                )}
+                <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+              </div>
             </div>
-          </div>
+          )}
+        </section>
+        {showVideoInput && (
+          <section>
+            <SectionTitle>{t('Video Input Pricing')}</SectionTitle>
+            <div className='rounded-lg border'>
+              <div className='divide-y'>
+                {hasResolutionRatios ? (
+                  Object.entries(videoInputRatios)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([res, ratio]) => (
+                      <div key={res} className='flex items-center justify-between px-3 py-2.5'>
+                        <span className='text-muted-foreground text-sm font-medium'>{res}</span>
+                        <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                          {formatPerSecondPrice(
+                            { ...props.model, model_ratio: props.model.model_ratio * ratio },
+                            fmtOpts.showWithRecharge,
+                            fmtOpts.priceRate,
+                            fmtOpts.usdExchangeRate
+                          )}
+                          <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                        </span>
+                      </div>
+                    ))
+                ) : (
+                  <div className='flex items-center justify-between px-3 py-2.5'>
+                    <span className='text-muted-foreground text-sm'>{t('With video')}</span>
+                    <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                      {formatPerSecondPrice(
+                        {
+                          ...props.model,
+                          model_ratio: props.model.model_ratio * (props.model.video_input_ratio ?? 1),
+                        },
+                        fmtOpts.showWithRecharge,
+                        fmtOpts.priceRate,
+                        fmtOpts.usdExchangeRate
+                      )}
+                      <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
         )}
-      </section>
+      </>
     )
   }
 
@@ -561,49 +612,93 @@ function PriceSection(props: {
       priceRate: props.priceRate,
       usdExchangeRate: props.usdExchangeRate,
     } as const
+
+    // Token-based models must use formatGroupPrice (model_ratio × 2 × group_ratio)
+    // Per-second models use formatPerSecondPrice (model_ratio × group_ratio)
+    const fmtBasePrice = (m: PricingModel) =>
+      isDuration
+        ? formatPerSecondPrice(m, fmtOpts.showWithRecharge, fmtOpts.priceRate, fmtOpts.usdExchangeRate)
+        : formatGroupPrice(m, baseGroupKey, 'input', DEFAULT_TOKEN_UNIT, fmtOpts.showWithRecharge, fmtOpts.priceRate, fmtOpts.usdExchangeRate, baseGroupRatioMap)
+
+    const videoInputRatios = props.model.video_input_ratios ?? {}
+    const hasResolutionRatios = Object.keys(videoInputRatios).length > 0
+    const hasVideoInputRatio =
+      props.model.video_input_ratio != null && props.model.video_input_ratio !== 1
+    const showVideoInput = hasResolutionRatios || hasVideoInputRatio
     return (
-      <section>
-        <SectionTitle>{t('Base Price')}</SectionTitle>
-        <div className='rounded-lg border'>
-          <div className='divide-y'>
-            <div className='flex items-center justify-between px-3 py-2.5'>
-              <span className='text-muted-foreground text-sm'>{t('default')}</span>
-              <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-                {formatPerSecondPrice(
-                  props.model,
-                  fmtOpts.showWithRecharge,
-                  fmtOpts.priceRate,
-                  fmtOpts.usdExchangeRate
-                )}
-                {isDuration && (
-                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
-                )}
-              </span>
-            </div>
-            {variants.map((v) => (
-              <div
-                key={v.model_name}
-                className='flex items-center justify-between px-3 py-2.5'
-              >
-                <span className='text-muted-foreground text-sm font-medium'>
-                  {extractVariantLabel(v.model_name ?? '')}
-                </span>
+      <>
+        <section>
+          <SectionTitle>{t('Base Price')}</SectionTitle>
+          <div className='rounded-lg border'>
+            <div className='divide-y'>
+              <div className='flex items-center justify-between px-3 py-2.5'>
+                <span className='text-muted-foreground text-sm'>{t('default')}</span>
                 <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-                  {formatPerSecondPrice(
-                    v,
-                    fmtOpts.showWithRecharge,
-                    fmtOpts.priceRate,
-                    fmtOpts.usdExchangeRate
-                  )}
-                  {isDurationBillingModel(v) && (
+                  {fmtBasePrice(props.model)}
+                  {isDuration && (
                     <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
                   )}
                 </span>
               </div>
-            ))}
+              {variants.map((v) => (
+                <div
+                  key={v.model_name}
+                  className='flex items-center justify-between px-3 py-2.5'
+                >
+                  <span className='text-muted-foreground text-sm font-medium'>
+                    {extractVariantLabel(v.model_name ?? '')}
+                  </span>
+                  <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                    {isDurationBillingModel(v)
+                      ? formatPerSecondPrice(v, fmtOpts.showWithRecharge, fmtOpts.priceRate, fmtOpts.usdExchangeRate)
+                      : formatGroupPrice(v, baseGroupKey, 'input', DEFAULT_TOKEN_UNIT, fmtOpts.showWithRecharge, fmtOpts.priceRate, fmtOpts.usdExchangeRate, baseGroupRatioMap)}
+                    {isDurationBillingModel(v) && (
+                      <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+        {showVideoInput && (
+          <section>
+            <SectionTitle>{t('Video Input Pricing')}</SectionTitle>
+            <div className='rounded-lg border'>
+              <div className='divide-y'>
+                {hasResolutionRatios ? (
+                  Object.entries(videoInputRatios)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([res, ratio]) => (
+                      <div key={res} className='flex items-center justify-between px-3 py-2.5'>
+                        <span className='text-muted-foreground text-sm font-medium'>{res}</span>
+                        <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                          {fmtBasePrice({ ...props.model, model_ratio: props.model.model_ratio * ratio })}
+                          {isDuration && (
+                            <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                          )}
+                        </span>
+                      </div>
+                    ))
+                ) : (
+                  <div className='flex items-center justify-between px-3 py-2.5'>
+                    <span className='text-muted-foreground text-sm'>{t('With video')}</span>
+                    <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                      {fmtBasePrice({
+                        ...props.model,
+                        model_ratio: props.model.model_ratio * (props.model.video_input_ratio ?? 1),
+                      })}
+                      {isDuration && (
+                        <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>/s</span>
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+      </>
     )
   }
 

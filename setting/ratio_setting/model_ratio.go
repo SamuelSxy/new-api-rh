@@ -669,12 +669,27 @@ var defaultImageRatio = map[string]float64{
 	"gpt-image-1": 2,
 }
 
-// defaultVideoInputRatio 含视频输入折扣比率（含视频单价 / 不含视频单价）。
+// defaultVideoInputRatio 含视频输入倍率（含视频单价 / 不含视频单价）。
 // 管理员应将 ModelRatio 设置为"不含视频"的较高费率，
-// 系统在检测到视频输入时自动乘以此折扣。
+// 系统在检测到视频输入时自动乘以此倍率。
+// 支持分辨率专用条目（格式：model@resolution），优先级高于通用条目。
+// 管理员可在后台覆盖任意条目；720p/1080p 占位值与通用值相同，需按实际价格调整。
 var defaultVideoInputRatio = map[string]float64{
-	"doubao-seedance-2-0-260128":      28.0 / 46.0, // ~0.6087
-	"doubao-seedance-2-0-fast-260128": 22.0 / 37.0, // ~0.5946
+	// doubao-seedance-2-0 按 Token 系列（通用 + 分辨率专用）
+	"doubao-seedance-2-0-260128":           28.0 / 46.0, // ~0.6087（通用，无分辨率）
+	"doubao-seedance-2-0-260128@720p":      28.0 / 46.0, // 占位，请按实际 720p 价格调整
+	"doubao-seedance-2-0-260128@1080p":     28.0 / 46.0, // 占位，请按实际 1080p 价格调整
+	"doubao-seedance-2-0-fast-260128":           22.0 / 37.0, // ~0.5946（通用，无分辨率）
+	"doubao-seedance-2-0-fast-260128@720p":      22.0 / 37.0, // 占位，请按实际 720p 价格调整
+	"doubao-seedance-2-0-fast-260128@1080p":     22.0 / 37.0, // 占位，请按实际 1080p 价格调整
+	// doubao-seedance-2-0 按秒计费系列（fall/fast-fall，通用 + 分辨率专用）
+	// 默认值 1.0 表示与无视频输入相同；管理员应按实际分辨率价格差异调整
+	"doubao-seedance-2-0-fall":           1.0, // 占位，请按实际价格调整
+	"doubao-seedance-2-0-fall@720p":      1.0, // 占位，请按实际 720p 价格调整
+	"doubao-seedance-2-0-fall@1080p":     1.0, // 占位，请按实际 1080p 价格调整
+	"doubao-seedance-2-0-fast-fall":      1.0, // 占位，请按实际价格调整
+	"doubao-seedance-2-0-fast-fall@720p": 1.0, // 占位，请按实际 720p 价格调整
+	"doubao-seedance-2-0-fast-fall@1080p": 1.0, // 占位，请按实际 1080p 价格调整
 }
 
 var imageRatioMap = types.NewRWMap[string, float64]()

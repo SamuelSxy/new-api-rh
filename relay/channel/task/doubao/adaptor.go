@@ -169,9 +169,20 @@ func applyResolutionPricing(info *relaycommon.RelayInfo, resolution string) {
 	}
 }
 
+// getVideoInputRatioForResolution 返回模型在指定分辨率下的视频输入倍率。
+// 优先级：model@resolution > model（fallback）。
+func getVideoInputRatioForResolution(modelName, resolution string) (float64, bool) {
+	if resolution != "" {
+		if r, ok := ratio_setting.GetVideoInputRatio(modelName + "@" + resolution); ok {
+			return r, true
+		}
+	}
+	return ratio_setting.GetVideoInputRatio(modelName)
+}
+
 // EstimateBilling 根据模型计费模式返回 OtherRatios。
-// 对于按秒计费模型，返回 video_input 折扣 + seconds（估算秒数）。
-// 对于普通视频输入，仅返回 video_input 折扣。
+// 对于按秒计费模型，返回 video_input 倍率 + seconds（估算秒数）。
+// 对于普通视频输入，仅返回 video_input 倍率。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -179,6 +190,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	ratios := make(map[string]float64)
+	resolution := resolveResolutionFromRequest(req)
 
 	// 按秒计费
 	if defaultSec, ok := isDurationBilling(info.OriginModelName); ok {
@@ -189,19 +201,19 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		}
 		// sec <= 0 表示时长未知，不预扣时长费，AdjustBillingOnComplete 完成后补收
 		// 分辨率专用定价：若管理员配置了 @resolution 专属价格则覆盖基础倍率
-		applyResolutionPricing(info, resolveResolutionFromRequest(req))
-		// 也检查是否有视频输入折扣
+		applyResolutionPricing(info, resolution)
+		// 也检查是否有视频输入倍率（支持按分辨率区分）
 		if hasVideoInMetadata(req.Metadata) {
-			if r, ok2 := GetVideoInputRatio(info.OriginModelName); ok2 {
+			if r, ok2 := getVideoInputRatioForResolution(info.OriginModelName, resolution); ok2 {
 				ratios["video_input"] = r
 			}
 		}
 		return ratios
 	}
 
-	// 普通视频输入折扣
+	// 普通视频输入倍率（支持按分辨率区分）
 	if hasVideoInMetadata(req.Metadata) {
-		if r, ok := GetVideoInputRatio(info.OriginModelName); ok {
+		if r, ok := getVideoInputRatioForResolution(info.OriginModelName, resolution); ok {
 			ratios["video_input"] = r
 		}
 	}
@@ -289,7 +301,11 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, _ *relaycommon.T
 	if bc.ModelRatio <= 0 || bc.GroupRatio <= 0 {
 		return 0
 	}
-	quota := int(bc.ModelRatio * common.QuotaPerUnit * bc.GroupRatio * float64(resTask.Duration))
+	videoInputRatio := 1.0
+	if r, ok := bc.OtherRatios["video_input"]; ok && r > 0 {
+		videoInputRatio = r
+	}
+	quota := int(bc.ModelRatio * common.QuotaPerUnit * bc.GroupRatio * float64(resTask.Duration) * videoInputRatio)
 	if quota < 0 {
 		quota = 0
 	}
