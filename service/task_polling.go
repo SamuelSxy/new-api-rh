@@ -446,6 +446,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		if task.FinishTime == 0 {
 			task.FinishTime = now
 		}
+		// 若需要 Mediakit 超分，先提交超分任务，不设置 ResultURL（等超分完成后再设置），
+		// 任务保留在 InProgress 状态继续轮询。
+		if task.PrivateData.MediakitTargetResolution != "" && taskResult.Url != "" {
+			return submitMediakitEnhancement(ctx, task, taskResult.Url, snap.Status)
+		}
 		if strings.HasPrefix(taskResult.Url, "data:") {
 			// data: URI (e.g. Vertex base64 encoded video) — keep in Data, not in ResultURL
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
@@ -461,10 +466,6 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			if audioData, marshalErr := common.Marshal([]map[string]string{{"audio_url": taskResult.Url}}); marshalErr == nil {
 				task.Data = audioData
 			}
-		}
-		// 若需要 Mediakit 超分，提交超分任务后将任务保留在 InProgress 状态继续轮询
-		if task.PrivateData.MediakitTargetResolution != "" && taskResult.Url != "" {
-			return submitMediakitEnhancement(ctx, task, taskResult.Url, snap.Status)
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
@@ -584,7 +585,7 @@ func submitMediakitEnhancement(ctx context.Context, task *model.Task, videoURL s
 	scene := system_setting.MediakitScene
 	targetResolution := task.PrivateData.MediakitTargetResolution
 
-	logger.LogInfo(ctx, fmt.Sprintf("Task %s 提交 Mediakit 超分：%s -> %s", task.TaskID, "480p", targetResolution))
+	logger.LogInfo(ctx, fmt.Sprintf("Task %s 提交 Mediakit 超分 -> %s", task.TaskID, targetResolution))
 
 	mkTaskID, err := SubmitEnhanceVideoTask(videoURL, targetResolution, toolVersion, scene, apiKey)
 	if err != nil {
@@ -604,9 +605,9 @@ func submitMediakitEnhancement(ctx context.Context, task *model.Task, videoURL s
 
 	logger.LogInfo(ctx, fmt.Sprintf("Task %s Mediakit 超分任务已提交， mediakit_task_id=%s", task.TaskID, mkTaskID))
 	task.PrivateData.MediakitTaskID = mkTaskID
-	// 任务保持 InProgress 状态
+	// 任务保持 InProgress 状态；progress 保持 60% 以避免低于生成阶段的进度（不回退）。
 	task.Status = model.TaskStatusInProgress
-	task.Progress = taskcommon.ProgressInProgress
+	task.Progress = "60%"
 	task.FinishTime = 0 // 清除完成时间，等待 Mediakit 完成
 	if _, updateErr := task.UpdateWithStatus(oldStatus); updateErr != nil {
 		logger.LogError(ctx, fmt.Sprintf("Task %s save mediakit_task_id failed: %v", task.TaskID, updateErr))
