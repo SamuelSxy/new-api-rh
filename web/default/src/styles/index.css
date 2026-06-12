@@ -30,6 +30,26 @@ For commercial licensing, please contact support@quantumnous.com
 @import './theme.css';
 @import './theme-presets.css';
 
+/* Hero swiper custom pagination */
+.hero-swiper-pagination .swiper-pagination-bullet {
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  opacity: 1;
+  transition: all 0.3s;
+}
+.hero-swiper-pagination .swiper-pagination-bullet-active {
+  width: 60px;
+  background: linear-gradient(180deg, #80FF00 0%, #FBFF00 100%);
+}
+
+/* Gallery card entrance animation */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {
   .dark .shiki span {

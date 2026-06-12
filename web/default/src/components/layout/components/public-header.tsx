@@ -69,7 +69,7 @@ export interface PublicHeaderProps {
 export function PublicHeader(props: PublicHeaderProps) {
   const {
     navLinks = defaultTopNavLinks,
-    showThemeSwitch = true,
+    showThemeSwitch = false,
     showLanguageSwitcher = true,
     logo: customLogo,
     siteName: customSiteName,
@@ -86,6 +86,7 @@ export function PublicHeader(props: PublicHeaderProps) {
     useState<AuthPromptTarget | null>(null)
   const [authPromptSecondsLeft, setAuthPromptSecondsLeft] =
     useState(AUTH_PROMPT_SECONDS)
+  const [comingSoonOpen, setComingSoonOpen] = useState(false)
   const { auth } = useAuthStore()
   const {
     systemName,
@@ -153,6 +154,13 @@ export function PublicHeader(props: PublicHeaderProps) {
       link: TopNavLink,
       closeMobile = false
     ) => {
+      if (link.comingSoon) {
+        event.preventDefault()
+        setComingSoonOpen(true)
+        if (closeMobile) setMobileOpen(false)
+        return
+      }
+
       if (link.disabled) {
         event.preventDefault()
         return
@@ -183,26 +191,25 @@ export function PublicHeader(props: PublicHeaderProps) {
       <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
         <div
           className={cn(
-            'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            scrolled ? 'max-w-[52rem] px-3 pt-3' : 'max-w-7xl px-4 pt-0 md:px-6'
+            'pointer-events-auto mx-auto w-full max-w-[1320px] px-3 transition-all duration-500 md:px-4',
+            scrolled ? 'pt-2' : 'pt-4'
           )}
         >
           <nav
             className={cn(
-              'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-              scrolled
-                ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
-                : 'h-16 px-2'
+              'flex h-20 items-center justify-between rounded-[50px] border border-white/10 px-2 backdrop-blur-xl transition-all duration-500',
+              'bg-[linear-gradient(180deg,rgba(255,255,255,0.1)_0%,rgba(23,23,23,0.4)_100%)]',
+              scrolled && 'shadow-[0_10px_30px_rgba(0,0,0,0.28)]'
             )}
           >
             {/* Logo */}
             <Link
               to={homeUrl}
-              className='group flex shrink-0 items-center gap-2.5'
+              className='group flex h-[60px] w-[200px] shrink-0 items-center justify-center gap-2 rounded-[60px] px-4'
             >
-              <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
+              <div className='flex h-[50px] w-[135px] shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
                 {loading ? (
-                  <Skeleton className='size-full rounded-lg' />
+                  <Skeleton className='h-8 w-24 rounded-lg' />
                 ) : customLogo ? (
                   customLogo
                 ) : (
@@ -210,17 +217,14 @@ export function PublicHeader(props: PublicHeaderProps) {
                     src={systemLogo}
                     loading={loading}
                     logoLoaded={logoLoaded}
-                    className='size-full rounded-lg object-contain'
+                    className='h-full w-full rounded-lg object-contain'
                   />
                 )}
               </div>
-              <span className='text-sm font-semibold tracking-tight'>
-                {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
-              </span>
             </Link>
 
-            {/* Desktop nav */}
-            <div className='hidden items-center gap-0.5 sm:flex'>
+            {/* Desktop nav — right aligned */}
+            <div className='hidden flex-1 items-center justify-end gap-1 sm:flex'>
               {links.map((link, i) => {
                 const isActive = pathname === link.href
                 if (link.external) {
@@ -234,7 +238,10 @@ export function PublicHeader(props: PublicHeaderProps) {
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
                       className={cn(
-                        'text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                        'flex h-[58px] items-center justify-center whitespace-nowrap rounded-[60px] px-10 text-xl leading-[1.5] transition-all duration-200',
+                        isActive
+                          ? 'bg-[linear-gradient(180deg,#80FF00_0%,#FBFF00_100%)] font-bold text-black'
+                          : 'bg-transparent font-normal text-white hover:bg-white/8',
                         link.disabled && 'pointer-events-none opacity-50'
                       )}
                     >
@@ -249,10 +256,10 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                      'flex h-[58px] items-center justify-center whitespace-nowrap rounded-[60px] px-10 text-xl leading-[1.5] transition-all duration-200',
                       isActive
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground',
+                        ? 'bg-[linear-gradient(180deg,#80FF00_0%,#FBFF00_100%)] font-bold text-black'
+                        : 'bg-transparent font-normal text-white hover:bg-white/8',
                       link.disabled && 'pointer-events-none opacity-50'
                     )}
                   >
@@ -260,16 +267,13 @@ export function PublicHeader(props: PublicHeaderProps) {
                   </Link>
                 )
               })}
+            </div>
 
-              {(showLanguageSwitcher ||
-                showThemeSwitch ||
-                showNotifications) && (
-                <div className='bg-border/40 mx-2 h-4 w-px' />
-              )}
-
-              {showLanguageSwitcher && <LanguageSwitcher />}
+            {/* Desktop nav — right actions */}
+            <div className='hidden shrink-0 items-center gap-1 sm:flex ml-6'>
+              {showLanguageSwitcher && isAuthenticated && <LanguageSwitcher />}
               {showThemeSwitch && <ThemeSwitch />}
-              {showNotifications && (
+              {showNotifications && isAuthenticated && (
                 <NotificationPopover
                   open={notifications.popoverOpen}
                   onOpenChange={notifications.setPopoverOpen}
@@ -284,18 +288,16 @@ export function PublicHeader(props: PublicHeaderProps) {
 
               {showAuthButtons && (
                 <>
-                  <div className='bg-border/40 mx-1 h-4 w-px' />
                   {loading ? (
-                    <Skeleton className='h-8 w-20 rounded-lg' />
+                    <Skeleton className='h-10 w-[80px] rounded-[60px]' />
                   ) : isAuthenticated ? (
                     <ProfileDropdown />
                   ) : (
                     <Button
-                      size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
+                      className='h-10 rounded-[60px] border border-white/10 bg-white/10 px-6 text-sm font-medium text-white transition-all hover:bg-white/20'
                       render={<Link to='/sign-in' />}
                     >
-                      {t('Sign in')}
+                      登录
                     </Button>
                   )}
                 </>
@@ -447,6 +449,21 @@ export function PublicHeader(props: PublicHeaderProps) {
               {t('Cancel')}
             </Button>
             <Button onClick={navigateToSignIn}>{t('Sign in now')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Coming Soon dialog */}
+      <Dialog open={comingSoonOpen} onOpenChange={setComingSoonOpen}>
+        <DialogContent className='sm:max-w-sm'>
+          <DialogHeader>
+            <DialogTitle>AIGC社群</DialogTitle>
+            <DialogDescription>
+              该功能正在紧张开发中，敬请期待！
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setComingSoonOpen(false)}>我知道了</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

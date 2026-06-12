@@ -99,5 +99,8 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('About'), href: '/about' })
   }
 
+  // AIGC社群 — coming soon
+  links.push({ title: 'AIGC社群', href: '#', comingSoon: true })
+
   return links
 }

@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
-import { CTA, Features, Gallery, Hero, HomeFooter, HowItWorks, Stats } from './components'
+import { Gallery, Hero, HomeFooter } from './components'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -63,11 +63,7 @@ export function Home() {
     <PublicLayout showMainContainer={false}>
       <div className='bg-[#171717]'>
         <Hero isAuthenticated={isAuthenticated} />
-        <Stats />
         <Gallery />
-        <Features />
-        <HowItWorks />
-        <CTA isAuthenticated={isAuthenticated} />
         <HomeFooter />
       </div>
     </PublicLayout>
