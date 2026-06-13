@@ -142,7 +142,7 @@
 
 **注意：**
 - 素材库为当前用户私有，其他用户无法查看。
-- 支持 Ark 资产同步状态（`syncAssetArkStatus`），若素材来源于火山引擎 Ark 服务，状态会自动更新。
+- 支持 Ark 资产状态同步接口（`GET /api/studio/assets/:id/ark-status`），会触发一次 Ark 侧状态查询并刷新数据库，返回结构与列表查询中单条素材完全一致（完整 `UserAsset` 对象，包含 `ark_status`、`ark_asset_uri` 等所有字段）。前端轮询时会用返回的完整对象覆盖本地缓存，无需额外发起列表请求。
 
 ---
 

@@ -374,8 +374,9 @@ func SyncUserAssetArkStatus(c *gin.Context) {
 			if err := model.UpdateArkStatusAndURI(asset.Id, asset.ArkStatus, ""); err != nil {
 				common.SysError(fmt.Sprintf("clear ark_asset_uri failed: id=%d err=%v", asset.Id, err))
 			}
+			asset.ArkAssetUri = ""
 		}
-		common.ApiSuccess(c, gin.H{"ark_status": asset.ArkStatus})
+		common.ApiSuccess(c, asset)
 		return
 	}
 
@@ -386,15 +387,16 @@ func SyncUserAssetArkStatus(c *gin.Context) {
 			if err := model.UpdateArkStatusAndURI(asset.Id, asset.ArkStatus, expectedURI); err != nil {
 				common.SysError(fmt.Sprintf("normalize ark fields failed: id=%d err=%v", asset.Id, err))
 			}
+			asset.ArkAssetUri = expectedURI
 		}
-		common.ApiSuccess(c, gin.H{"ark_status": asset.ArkStatus})
+		common.ApiSuccess(c, asset)
 		return
 	}
 
 	status, err := service.ArkGetAssetStatus(asset.ArkAssetId, system_setting.ArkAssetProjectName)
 	if err != nil {
 		common.SysError(fmt.Sprintf("ark get asset status failed: user_id=%d asset_id=%s err=%v", userId, asset.ArkAssetId, err))
-		common.ApiSuccess(c, gin.H{"ark_status": asset.ArkStatus})
+		common.ApiSuccess(c, asset)
 		return
 	}
 
@@ -404,6 +406,8 @@ func SyncUserAssetArkStatus(c *gin.Context) {
 			common.SysError(fmt.Sprintf("update ark fields failed: id=%d err=%v", asset.Id, err))
 		}
 	}
+	asset.ArkStatus = status
+	asset.ArkAssetUri = expectedURI
 
-	common.ApiSuccess(c, gin.H{"ark_status": status})
+	common.ApiSuccess(c, asset)
 }

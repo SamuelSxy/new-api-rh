@@ -282,15 +282,15 @@ export async function deleteUserAsset(id: number): Promise<boolean> {
   return Boolean(data.success)
 }
 
-export async function syncAssetArkStatus(id: number): Promise<string> {
+export async function syncAssetArkStatus(id: number): Promise<UserAsset | null> {
   try {
     const res = await api.get(`${API_ENDPOINTS.STUDIO_ASSETS}/${id}/ark-status`)
     const { data } = res
     if (data.success && data.data) {
-      return (data.data as { ark_status: string }).ark_status ?? ''
+      return data.data as UserAsset
     }
   } catch {
     // ignore
   }
-  return ''
+  return null
 }

@@ -181,8 +181,8 @@ function AssetGrid({ assets, isLoading, assetType, onSelect, onDelete }: AssetGr
 
       await Promise.all(
         processing.map(async (asset) => {
-          const status = await syncAssetArkStatus(asset.id)
-          if (status && status !== asset.ark_status) {
+          const updated = await syncAssetArkStatus(asset.id)
+          if (updated && updated.ark_status !== asset.ark_status) {
             // Patch the cached query data in-place so we avoid a full refetch.
             queryClient.setQueryData(
               ['studio-assets', assetType],
@@ -191,13 +191,13 @@ function AssetGrid({ assets, isLoading, assetType, onSelect, onDelete }: AssetGr
                 return {
                   ...old,
                   items: old.items.map((item) =>
-                    item.id === asset.id ? { ...item, ark_status: status } : item
+                    item.id === asset.id ? { ...item, ...updated } : item
                   ),
                 }
               }
             )
           }
-          if (!status || status === 'Processing') {
+          if (!updated || updated.ark_status === 'Processing') {
             stillProcessing.push(asset.id)
           }
         })
