@@ -114,6 +114,10 @@ export function SidebarModulesSection({
         title: t('Task logs'),
         description: t('Background job tracker for queued work.'),
       },
+      studio: {
+        title: t('Studio'),
+        description: t('Create scripts, images, voiceovers, and videos with AI'),
+      },
     },
     personal: {
       topup: {

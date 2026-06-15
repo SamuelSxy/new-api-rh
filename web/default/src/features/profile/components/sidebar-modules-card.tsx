@@ -101,6 +101,11 @@ export function SidebarModulesCard() {
           title: t('Task Logs'),
           description: t('System task records'),
         },
+        {
+          key: 'studio',
+          title: t('Studio'),
+          description: t('Create scripts, images, voiceovers, and videos with AI'),
+        },
       ],
     },
     {

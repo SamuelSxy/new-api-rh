@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { AppHeader, Main } from '@/components/layout'
+import { Main } from '@/components/layout'
 import { Studio } from '@/features/studio'
 
 export const Route = createFileRoute('/_authenticated/studio/')({
@@ -8,11 +8,8 @@ export const Route = createFileRoute('/_authenticated/studio/')({
 
 function StudioPage() {
   return (
-    <>
-      <AppHeader />
-      <Main className='overflow-y-auto'>
-        <Studio />
-      </Main>
-    </>
+    <Main className='overflow-y-auto'>
+      <Studio />
+    </Main>
   )
 }

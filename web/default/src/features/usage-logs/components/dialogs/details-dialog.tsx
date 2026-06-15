@@ -192,7 +192,7 @@ function BillingBreakdown(props: {
         value: `${fmtPrice(other.model_ratio)}/s`,
       })
     }
-    if (other.video_input != null && other.video_input !== 1) {
+    if (other.video_input != null) {
       rows.push({
         label: t('Video input multiplier'),
         value: `${other.video_input.toFixed(4)}x`,
