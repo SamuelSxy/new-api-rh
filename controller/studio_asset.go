@@ -1,14 +1,19 @@
 package controller
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -70,8 +75,66 @@ var safeExtForMIME = map[string]string{
 	"video/x-msvideo": ".avi",
 }
 
-// UploadUserAsset handles multipart file upload, stores the file and optionally
-// registers it with the Ark Asset API.
+// downloadAssetFromURL fetches a remote file via HTTP/HTTPS with SSRF protection
+// and returns the file bytes, detected MIME type, and any error.
+// maxSize is the maximum allowed file size in bytes.
+func downloadAssetFromURL(urlStr string, maxSize int64) (data []byte, contentType string, err error) {
+	// Validate the initial URL against SSRF — block private IPs, resolve domains to check.
+	if err = common.ValidateURLWithFetchSetting(urlStr, true, false, false, false, nil, nil, nil, true); err != nil {
+		return nil, "", fmt.Errorf("URL 安全校验失败: %w", err)
+	}
+
+	client := &http.Client{
+		Timeout: 60 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("重定向次数过多")
+			}
+			// Re-validate each redirect target to prevent SSRF-via-redirect.
+			if verr := common.ValidateURLWithFetchSetting(req.URL.String(), true, false, false, false, nil, nil, nil, true); verr != nil {
+				return fmt.Errorf("重定向目标 URL 安全校验失败: %w", verr)
+			}
+			return nil
+		},
+	}
+
+	resp, err := client.Get(urlStr)
+	if err != nil {
+		return nil, "", fmt.Errorf("HTTP 请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("远端服务器返回 HTTP %d", resp.StatusCode)
+	}
+
+	// Read body with size limit (+1 so we can detect exact-limit vs over-limit).
+	lr := io.LimitReader(resp.Body, maxSize+1)
+	buf, err := io.ReadAll(lr)
+	if err != nil {
+		return nil, "", fmt.Errorf("读取响应内容失败: %w", err)
+	}
+	if int64(len(buf)) > maxSize {
+		return nil, "", fmt.Errorf("文件大小超过限制 (%d MB)", maxSize>>20)
+	}
+
+	// Determine content type: prefer response header, fall back to byte sniffing.
+	ct := resp.Header.Get("Content-Type")
+	if idx := strings.Index(ct, ";"); idx != -1 {
+		ct = strings.TrimSpace(ct[:idx])
+	}
+	if ct == "" || ct == "application/octet-stream" {
+		ct = http.DetectContentType(buf)
+		if idx := strings.Index(ct, ";"); idx != -1 {
+			ct = strings.TrimSpace(ct[:idx])
+		}
+	}
+
+	return buf, ct, nil
+}
+
+// UploadUserAsset handles multipart file upload or URL-based download, stores the
+// asset in TOS or on local disk, and optionally registers it with the Ark Asset API.
 func UploadUserAsset(c *gin.Context) {
 	userId := c.GetInt("id")
 
@@ -91,20 +154,67 @@ func UploadUserAsset(c *gin.Context) {
 	}
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSize)
-	if err := c.Request.ParseMultipartForm(maxSize); err != nil {
+	if err := c.Request.ParseMultipartForm(maxSize); err != nil && !errors.Is(err, http.ErrNotMultipart) {
 		common.ApiErrorMsg(c, "文件过大或请求格式错误")
 		return
 	}
 
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		common.ApiErrorMsg(c, "缺少 file 字段")
+	urlStr := strings.TrimSpace(c.PostForm("url"))
+	fileHeader, fileErr := c.FormFile("file")
+
+	// Resolve content source: file upload takes priority over URL download.
+	var (
+		contentType string
+		fileSize    int64
+		srcReader   io.Reader
+		srcClose    func()
+	)
+
+	if fileErr == nil {
+		// --- File upload path ---
+		contentType = fileHeader.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = mime.TypeByExtension(filepath.Ext(fileHeader.Filename))
+		}
+		fileSize = fileHeader.Size
+		if name == "" {
+			name = fileHeader.Filename
+		}
+		f, err := fileHeader.Open()
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		srcReader = f
+		srcClose = func() { f.Close() }
+	} else if urlStr != "" {
+		// --- URL download path ---
+		buf, ct, err := downloadAssetFromURL(urlStr, maxSize)
+		if err != nil {
+			common.ApiErrorMsg(c, fmt.Sprintf("从 URL 下载失败: %v", err))
+			return
+		}
+		contentType = ct
+		fileSize = int64(len(buf))
+		srcReader = bytes.NewReader(buf)
+		if name == "" {
+			if parsedURL, parseErr := url.Parse(urlStr); parseErr == nil {
+				baseName := path.Base(parsedURL.Path)
+				if baseName != "." && baseName != "/" && baseName != "" {
+					name = baseName
+				}
+			}
+			if name == "" {
+				name = "asset-" + uuid.New().String()
+			}
+		}
+	} else {
+		common.ApiErrorMsg(c, "缺少 file 字段或 url 字段")
 		return
 	}
 
-	contentType := fileHeader.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = mime.TypeByExtension(filepath.Ext(fileHeader.Filename))
+	if srcClose != nil {
+		defer srcClose()
 	}
 
 	if assetType == "Image" && !allowedImageTypes[contentType] {
@@ -116,10 +226,6 @@ func UploadUserAsset(c *gin.Context) {
 		return
 	}
 
-	if name == "" {
-		name = fileHeader.Filename
-	}
-
 	ext := safeExtForMIME[contentType] // use server-controlled extension to prevent stored-XSS
 	fileUUID := uuid.New().String()
 	storedFileName := fileUUID + ext
@@ -129,14 +235,7 @@ func UploadUserAsset(c *gin.Context) {
 	var cleanupFunc func()
 
 	if system_setting.TosEnabled {
-		src, err := fileHeader.Open()
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		defer src.Close()
-
-		tosURL, err := service.TosUploadFile(src, tosObjectKey, contentType)
+		tosURL, err := service.TosUploadFile(srcReader, tosObjectKey, contentType)
 		if err != nil {
 			common.ApiError(c, fmt.Errorf("上传到 TOS 失败: %w", err))
 			return
@@ -152,13 +251,6 @@ func UploadUserAsset(c *gin.Context) {
 			return
 		}
 
-		src, err := fileHeader.Open()
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		defer src.Close()
-
 		dstPath := filepath.Join(userDir, storedFileName)
 		dstFile, err := os.Create(dstPath)
 		if err != nil {
@@ -167,7 +259,7 @@ func UploadUserAsset(c *gin.Context) {
 		}
 		defer dstFile.Close()
 
-		if _, err := io.Copy(dstFile, src); err != nil {
+		if _, err := io.Copy(dstFile, srcReader); err != nil {
 			common.ApiError(c, fmt.Errorf("写入文件失败: %w", err))
 			return
 		}
@@ -231,7 +323,7 @@ func UploadUserAsset(c *gin.Context) {
 		Name:        name,
 		AssetType:   assetType,
 		FileName:    storedFileName,
-		FileSize:    fileHeader.Size,
+		FileSize:    fileSize,
 		ContentType: contentType,
 		SourceUrl:   sourceURL,
 		ArkAssetId:  arkAssetId,

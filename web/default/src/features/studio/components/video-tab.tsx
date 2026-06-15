@@ -17,9 +17,12 @@ function isSeedanceModel(modelName: string): boolean {
   return modelName.toLowerCase().includes('seedance')
 }
 
+const DEFAULT_VIDEO_MODEL = 'doubao-seedance-2-0-fall'
+
 export function VideoTab({ models }: VideoTabProps) {
   const { t } = useTranslation()
-  const [model, setModel] = useState(models[0]?.value ?? '')
+  const preferred = models.find((m) => m.value === DEFAULT_VIDEO_MODEL)
+  const [model, setModel] = useState(preferred?.value ?? models[0]?.value ?? '')
   const [prompt, setPrompt] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [taskId, setTaskId] = useState('')
@@ -76,7 +79,8 @@ export function VideoTab({ models }: VideoTabProps) {
 
   useEffect(() => {
     if (!model && models.length > 0) {
-      setModel(models[0].value)
+      const preferred = models.find((m) => m.value === DEFAULT_VIDEO_MODEL)
+      setModel(preferred?.value ?? models[0].value)
     }
   }, [model, models])
 
@@ -295,9 +299,32 @@ export function VideoTab({ models }: VideoTabProps) {
       metadata[key] = value
     })
 
-    const imageUrls = Array.isArray(formValues.image_urls)
-      ? formValues.image_urls.filter((item): item is string => typeof item === 'string')
-      : []
+    // Resolve media from the unified media_urls field (new schemas) or
+    // fallback to legacy image_urls (old schemas).
+    const allMediaUrls: string[] = (
+      Array.isArray(formValues.media_urls)
+        ? formValues.media_urls
+        : Array.isArray(formValues.image_urls)
+          ? formValues.image_urls
+          : []
+    ).filter((item): item is string => typeof item === 'string')
+
+    // Split into images and videos based on the VIDEO_PREFIX stored by MediaUploadField
+    // and data URL MIME prefix for file-uploaded videos.
+    const videoUrlsRaw = allMediaUrls.filter(
+      (u) => u.startsWith('video:') || u.startsWith('data:video')
+    )
+    const imageUrls = allMediaUrls.filter(
+      (u) => !u.startsWith('video:') && !u.startsWith('data:video')
+    )
+    // Strip the 'video:' prefix before sending
+    const videoUrls = videoUrlsRaw.map((u) => (u.startsWith('video:') ? u.slice(6) : u))
+
+    // Also read the legacy text-field video_url for backward compat
+    const legacyVideoUrl =
+      typeof formValues.video_url === 'string' && formValues.video_url.trim()
+        ? formValues.video_url.trim()
+        : null
 
     const payload: Record<string, unknown> = {
       model,
@@ -305,9 +332,23 @@ export function VideoTab({ models }: VideoTabProps) {
       metadata,
     }
 
+    // Images: send first as top-level `image`, all as `images`
     if (imageUrls.length > 0) {
       payload.image = imageUrls[0]
+      if (imageUrls.length > 1) {
+        payload.images = imageUrls
+      }
     }
+
+    // Videos: send as `content` array items with type "video_url"
+    const allVideos = [...videoUrls, ...(legacyVideoUrl ? [legacyVideoUrl] : [])]
+    if (allVideos.length > 0) {
+      payload.content = allVideos.map((url) => ({
+        type: 'video_url',
+        video_url: { url },
+      }))
+    }
+
     if (typeof formValues.duration === 'number') {
       payload.duration = formValues.duration
     }

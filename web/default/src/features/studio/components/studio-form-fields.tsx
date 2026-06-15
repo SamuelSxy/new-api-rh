@@ -13,8 +13,32 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
+import { LinkIcon } from 'lucide-react'
 import type { StudioFormField, StudioFormSchema, StudioFormValue, UserAsset } from '../types'
 import { AssetLibraryDialog } from './asset-library-dialog'
+
+/** Prefix used to mark video URLs stored inside a media_urls string array. */
+const VIDEO_PREFIX = 'video:'
+
+/** Returns true if the stored URL represents a video entry. */
+function isVideoEntry(url: string): boolean {
+  return url.startsWith(VIDEO_PREFIX) || url.startsWith('data:video')
+}
+
+/** Strips VIDEO_PREFIX so the URL is suitable for <video src> or API submission. */
+function stripVideoPrefix(url: string): string {
+  return url.startsWith(VIDEO_PREFIX) ? url.slice(VIDEO_PREFIX.length) : url
+}
+
+/** Auto-detect media type from a plain URL string. */
+function detectMediaTypeFromUrl(url: string): 'image' | 'video' {
+  const lower = url.toLowerCase().split('?')[0]
+  if (['.mp4', '.mov', '.webm', '.avi', '.mpeg', '.m4v', '.mkv'].some((ext) => lower.endsWith(ext))) {
+    return 'video'
+  }
+  if (lower.startsWith('data:video')) return 'video'
+  return 'image'
+}
 
 interface StudioFormFieldsProps {
   schema: StudioFormSchema
@@ -55,15 +79,17 @@ export function StudioFormFields({
     const submitUrl = asset.ark_asset_id ? `asset://${asset.ark_asset_id}` : asset.source_url
     const previewUrl = asset.source_url
     const fieldDef = schema.fields.find((f) => f.key === assetLibraryField.key)
-    if (fieldDef?.type === 'image_upload') {
-      // Append to the existing images array
+    if (fieldDef?.type === 'image_upload' || fieldDef?.type === 'media_upload') {
+      // Append to the existing array
       const existing = Array.isArray(values[assetLibraryField.key])
         ? (values[assetLibraryField.key] as string[])
         : []
-      onValueChange(assetLibraryField.key, [...existing, submitUrl])
+      // For video assets, prefix the stored URL so we can distinguish type later
+      const storeUrl = asset.asset_type === 'Video' ? `${VIDEO_PREFIX}${submitUrl}` : submitUrl
+      onValueChange(assetLibraryField.key, [...existing, storeUrl])
       // Track preview URL separately so the thumbnail can display correctly
-      if (submitUrl !== previewUrl) {
-        setImagePreviewMap((prev) => new Map([...prev, [submitUrl, previewUrl]]))
+      if (storeUrl !== previewUrl) {
+        setImagePreviewMap((prev) => new Map([...prev, [storeUrl, previewUrl]]))
       }
     } else {
       onValueChange(assetLibraryField.key, submitUrl)
@@ -186,6 +212,21 @@ export function StudioFormFields({
                     </Button>
                   )}
                 </div>
+              )}
+
+              {field.type === 'media_upload' && (
+                <MediaUploadField
+                  field={field}
+                  value={value}
+                  disabled={disabled}
+                  previewMap={imagePreviewMap}
+                  showAssetLibrary={showAssetLibrary}
+                  onValueChange={(nextValue) => onValueChange(field.key, nextValue)}
+                  onFromLibrary={() => openAssetLibrary(field.key, 'Image')}
+                  onPreviewMapUpdate={(entries) =>
+                    setImagePreviewMap((prev) => new Map([...prev, ...entries]))
+                  }
+                />
               )}
 
               {field.type === 'asset_uri' && (
@@ -419,4 +460,256 @@ function readFileAsDataUrl(file: File): Promise<string> {
     }
     reader.readAsDataURL(file)
   })
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MediaUploadField — unified image + video upload / URL input / library picker
+// ──────────────────────────────────────────────────────────────────────────────
+
+interface MediaUploadFieldProps {
+  field: StudioFormField
+  value: StudioFormValue
+  disabled: boolean
+  previewMap?: Map<string, string>
+  showAssetLibrary?: boolean
+  onValueChange: (value: string[]) => void
+  onFromLibrary: () => void
+  /** Called with new [storeUrl, previewUrl] pairs to bubble up to the parent map. */
+  onPreviewMapUpdate: (entries: [string, string][]) => void
+}
+
+function MediaUploadField({
+  field,
+  value,
+  disabled,
+  previewMap,
+  showAssetLibrary,
+  onValueChange,
+  onFromLibrary,
+  onPreviewMapUpdate,
+}: MediaUploadFieldProps) {
+  const { t } = useTranslation()
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [showUrlInput, setShowUrlInput] = useState(false)
+  const [urlInput, setUrlInput] = useState('')
+
+  const items = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : []
+
+  const maxCount =
+    typeof field.max === 'number' && field.max > 0 ? field.max : undefined
+
+  const appendFiles = useCallback(
+    async (files: FileList | File[]) => {
+      if (disabled) return
+      const incoming = Array.from(files).filter(
+        (f) => f.type.startsWith('image/') || f.type.startsWith('video/')
+      )
+      if (incoming.length === 0) {
+        toast.error(t('Please upload image or video files only'))
+        return
+      }
+      if (maxCount && items.length >= maxCount) {
+        toast.warning(t('Maximum upload count reached: {{count}}', { count: maxCount }))
+        return
+      }
+      const allowedCount = maxCount ? Math.max(0, maxCount - items.length) : incoming.length
+      const selected = incoming.slice(0, allowedCount)
+      if (incoming.length > selected.length) {
+        toast.warning(t('Only {{count}} more files can be added', { count: allowedCount }))
+      }
+      if (selected.length === 0) return
+
+      const encoded = await Promise.all(
+        selected.map(async (file) => {
+          const dataUrl = await readFileAsDataUrl(file)
+          // Prefix videos so we can later distinguish them from images
+          return file.type.startsWith('video/') ? `${VIDEO_PREFIX}${dataUrl}` : dataUrl
+        })
+      )
+      onValueChange([...items, ...encoded])
+    },
+    [disabled, items, maxCount, onValueChange, t]
+  )
+
+  const handleAddUrl = () => {
+    const url = urlInput.trim()
+    if (!url) return
+    const mediaType = detectMediaTypeFromUrl(url)
+    const storeUrl = mediaType === 'video' ? `${VIDEO_PREFIX}${url}` : url
+    onValueChange([...items, storeUrl])
+    // For external URLs, preview URL is the same as display URL
+    if (storeUrl !== url) {
+      onPreviewMapUpdate([[storeUrl, url]])
+    }
+    setUrlInput('')
+    setShowUrlInput(false)
+  }
+
+  return (
+    <div className='space-y-2'>
+      <input
+        ref={inputRef}
+        type='file'
+        accept='image/*,video/*'
+        multiple
+        disabled={disabled}
+        className='hidden'
+        onChange={async (event) => {
+          const files = event.target.files
+          if (!files || files.length === 0) return
+          await appendFiles(files)
+          event.target.value = ''
+        }}
+      />
+
+      <div
+        className={`rounded-md border border-dashed p-3 text-xs ${
+          isDragging ? 'border-primary bg-primary/5' : 'border-border'
+        }`}
+        onDragOver={(event) => {
+          event.preventDefault()
+          if (!disabled) setIsDragging(true)
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault()
+          setIsDragging(false)
+        }}
+        onDrop={async (event) => {
+          event.preventDefault()
+          setIsDragging(false)
+          if (disabled) return
+          await appendFiles(event.dataTransfer.files)
+        }}
+      >
+        <div className='text-muted-foreground'>
+          {t('Drag and drop images or videos here, or use the buttons below')}
+        </div>
+        <div className='mt-2 flex flex-wrap gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            disabled={disabled}
+            onClick={() => inputRef.current?.click()}
+          >
+            {t('Upload Files')}
+          </Button>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            disabled={disabled}
+            onClick={() => setShowUrlInput((v) => !v)}
+          >
+            <LinkIcon className='mr-1 size-3' />
+            {t('Add URL')}
+          </Button>
+          {showAssetLibrary && (
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={disabled}
+              onClick={onFromLibrary}
+            >
+              {t('From Library')}
+            </Button>
+          )}
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            disabled={disabled || items.length === 0}
+            onClick={() => onValueChange([])}
+          >
+            {t('Clear All')}
+          </Button>
+        </div>
+
+        {showUrlInput && (
+          <div className='mt-2 flex gap-2'>
+            <Input
+              value={urlInput}
+              placeholder='https://example.com/image.jpg or video.mp4'
+              disabled={disabled}
+              className='h-8 text-xs'
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleAddUrl()
+                }
+              }}
+            />
+            <Button
+              type='button'
+              size='sm'
+              disabled={disabled || !urlInput.trim()}
+              onClick={handleAddUrl}
+            >
+              {t('Add')}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {typeof maxCount === 'number' && (
+        <p className='text-muted-foreground text-xs'>
+          {t('Maximum upload count')}: {maxCount}
+        </p>
+      )}
+
+      {items.length > 0 && (
+        <>
+          <div className='text-muted-foreground text-xs'>
+            {t('Media items')}: {items.length}
+          </div>
+          <div className='grid grid-cols-3 gap-2'>
+            {items.map((item, index) => {
+              const isVideo = isVideoEntry(item)
+              const displaySrc = previewMap?.get(item) ?? (isVideo ? stripVideoPrefix(item) : item)
+              return (
+                <div key={`${field.key}-${index}`} className='relative'>
+                  {isVideo ? (
+                    <video
+                      src={displaySrc}
+                      className='h-16 w-full rounded-md border object-cover bg-muted/30'
+                      muted
+                      preload='metadata'
+                    />
+                  ) : (
+                    <img
+                      src={displaySrc}
+                      alt={`${field.key}-${index}`}
+                      className='h-16 w-full rounded-md border object-cover'
+                    />
+                  )}
+                  {isVideo && (
+                    <div className='absolute bottom-1 left-1 rounded bg-black/50 px-1 text-[9px] text-white'>
+                      {t('Video')}
+                    </div>
+                  )}
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant='destructive'
+                    className='absolute top-1 right-1 h-6 px-2 text-[10px]'
+                    disabled={disabled}
+                    onClick={() => {
+                      onValueChange(items.filter((_, i) => i !== index))
+                    }}
+                  >
+                    {t('Delete')}
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }

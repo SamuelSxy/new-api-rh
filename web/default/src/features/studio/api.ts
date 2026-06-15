@@ -263,6 +263,23 @@ export async function uploadUserAsset(
   return data.data as UserAsset
 }
 
+export async function uploadUserAssetByUrl(
+  url: string,
+  name: string,
+  assetType: 'Image' | 'Video'
+): Promise<UserAsset | null> {
+  const form = new FormData()
+  form.append('url', url)
+  form.append('name', name || url.split('/').pop() || 'asset')
+  form.append('asset_type', assetType)
+  const res = await api.post(API_ENDPOINTS.STUDIO_ASSETS, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  const { data } = res
+  if (!data.success || !data.data) return null
+  return data.data as UserAsset
+}
+
 export async function listUserAssets(
   assetType?: 'Image' | 'Video',
   page = 1,

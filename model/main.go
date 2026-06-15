@@ -282,6 +282,8 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&UserAsset{},
+		&StudioModelConfig{},
+		&StudioFormSchema{},
 	)
 	if err != nil {
 		return err
@@ -295,6 +297,7 @@ func migrateDB() error {
 			return err
 		}
 	}
+	EnsureDefaultStudioData()
 	return nil
 }
 
@@ -332,6 +335,8 @@ func migrateDBFast() error {
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
 		{&UserAsset{}, "UserAsset"},
+		{&StudioModelConfig{}, "StudioModelConfig"},
+		{&StudioFormSchema{}, "StudioFormSchema"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -365,6 +370,7 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	EnsureDefaultStudioData()
 	common.SysLog("database migrated")
 	return nil
 }

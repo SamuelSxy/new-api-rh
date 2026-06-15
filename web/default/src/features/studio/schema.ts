@@ -179,7 +179,7 @@ export function buildInitialFormValues(schema: StudioFormSchema): Record<string,
         acc[field.key] = false
         return acc
       }
-      if (field.type === 'image_upload') {
+      if (field.type === 'image_upload' || field.type === 'media_upload') {
         acc[field.key] = []
         return acc
       }
@@ -224,5 +224,5 @@ function isValidField(field: unknown): field is StudioFormField {
   if (!candidate.key || !candidate.label || !candidate.type) {
     return false
   }
-  return ['text', 'textarea', 'number', 'select', 'switch', 'image_upload'].includes(candidate.type)
+  return ['text', 'textarea', 'number', 'select', 'switch', 'image_upload', 'media_upload', 'asset_uri'].includes(candidate.type)
 }

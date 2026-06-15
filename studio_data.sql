@@ -68,7 +68,7 @@ INSERT INTO public.studio_form_schemas VALUES (3, 'Happyhorse Video Form', 'vide
     }
   ]
 }', 'Video generation form for happyhorse', 1, 1778395179, 1778693791, NULL);
-INSERT INTO public.studio_form_schemas VALUES (4, 'doubao-seedance-2-0-fast-260128 Video Form', 'video', 'doubao-seedance-2-0-fast-260128', 1, '{
+INSERT INTO public.studio_form_schemas VALUES (4, 'doubao-seedance-2-0-fast-260128 Video Form', 'video', 'doubao-seedance-2-0-fast-260128', 3, '{
   "name": "Seedance 2.0 Fast Video Form",
   "modelType": "video",
   "modelName": "seedance2.0-fast",
@@ -91,18 +91,12 @@ INSERT INTO public.studio_form_schemas VALUES (4, 'doubao-seedance-2-0-fast-2601
       "defaultValue": "720"
     },
     {
-      "key": "image_urls",
-      "label": "Images (Local upload, multiple)",
-      "type": "image_upload",
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
       "required": true,
       "max": 10,
-      "helpText": "Images will be converted to base64 data URLs automatically"
-    },
-    {
-      "key": "video_url",
-      "label": "Reference Video URL",
-      "type": "text",
-      "placeholder": "https://example.com/reference.mp4"
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
     },
     {
       "key": "duration",
@@ -177,7 +171,7 @@ INSERT INTO public.studio_form_schemas VALUES (5, 'rhart-image-n-pro-official/ed
     }
   ]
 }', 'Image generation form for rhart-image-n-pro-official/edit', 1, 1778609206, 1778609218, NULL);
-INSERT INTO public.studio_form_schemas VALUES (1, 'Seedance 2.0 Fast Video Form', 'video', 'seedance2.0-fast', 1, '{
+INSERT INTO public.studio_form_schemas VALUES (1, 'Seedance 2.0 Fast Video Form', 'video', 'seedance2.0-fast', 3, '{
   "name": "Seedance 2.0 Fast Video Form",
   "modelType": "video",
   "modelName": "seedance2.0-fast",
@@ -200,18 +194,12 @@ INSERT INTO public.studio_form_schemas VALUES (1, 'Seedance 2.0 Fast Video Form'
       "defaultValue": "720"
     },
     {
-      "key": "image_urls",
-      "label": "Images (Local upload, multiple)",
-      "type": "image_upload",
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
       "required": true,
       "max": 10,
-      "helpText": "Images will be converted to base64 data URLs automatically"
-    },
-    {
-      "key": "video_url",
-      "label": "Reference Video URL",
-      "type": "text",
-      "placeholder": "https://example.com/reference.mp4"
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
     },
     {
       "key": "duration",
@@ -305,7 +293,7 @@ INSERT INTO public.studio_form_schemas VALUES (6, 'rhart-audio/text-to-audio/spe
     }
   ]
 }', 'Voice generation form for rhart-audio/text-to-audio/speech-2.8-turbo', 1, 1778609236, 1778609240, NULL);
-INSERT INTO public.studio_form_schemas VALUES (2, 'Seedance 2.0 Video Form', 'video', 'seedance2.0', 1, '{
+INSERT INTO public.studio_form_schemas VALUES (2, 'Seedance 2.0 Video Form', 'video', 'seedance2.0', 3, '{
   "name": "Seedance 2.0 Video Form",
   "modelType": "video",
   "modelName": "seedance2.0",
@@ -332,18 +320,12 @@ INSERT INTO public.studio_form_schemas VALUES (2, 'Seedance 2.0 Video Form', 'vi
       "defaultValue": "1080"
     },
     {
-      "key": "image_urls",
-      "label": "Images (Local upload, multiple)",
-      "type": "image_upload",
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
       "required": true,
       "max": 10,
-      "helpText": "Images will be converted to base64 data URLs automatically"
-    },
-    {
-      "key": "video_url",
-      "label": "Reference Video URL",
-      "type": "text",
-      "placeholder": "https://example.com/reference.mp4"
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
     },
     {
       "key": "duration",
@@ -399,7 +381,7 @@ INSERT INTO public.studio_form_schemas VALUES (8, 'alibaba/happyhorse-1.0/refere
     }
   ]
 }', 'Video generation form for alibaba/happyhorse-1.0/reference-to-video', 1, 1778694013, 1778694270, NULL);
-INSERT INTO public.studio_form_schemas VALUES (7, 'doubao-seedance-2-0-260128 Video Form', 'video', 'doubao-seedance-2-0-260128', 1, '{
+INSERT INTO public.studio_form_schemas VALUES (7, 'doubao-seedance-2-0-260128 Video Form', 'video', 'doubao-seedance-2-0-260128', 3, '{
   "name": "Seedance 2.0 Video Form",
   "modelType": "video",
   "modelName": "seedance2.0",
@@ -426,18 +408,12 @@ INSERT INTO public.studio_form_schemas VALUES (7, 'doubao-seedance-2-0-260128 Vi
       "defaultValue": "1080"
     },
     {
-      "key": "image_urls",
-      "label": "Images (Local upload, multiple)",
-      "type": "image_upload",
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
       "required": true,
       "max": 10,
-      "helpText": "Images will be converted to base64 data URLs automatically"
-    },
-    {
-      "key": "video_url",
-      "label": "Reference Video URL",
-      "type": "text",
-      "placeholder": "https://example.com/reference.mp4"
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
     },
     {
       "key": "duration",
@@ -451,6 +427,79 @@ INSERT INTO public.studio_form_schemas VALUES (7, 'doubao-seedance-2-0-260128 Vi
     }
   ]
 }', 'Video generation form for doubao-seedance-2-0-260128', 1, 1778693946, 1778693946, NULL);
+INSERT INTO public.studio_form_schemas VALUES (9, 'doubao-seedance-2-0-fall Video Form', 'video', 'doubao-seedance-2-0-fall', 3, '{
+  "name": "Seedance 2.0 Fall Video Form",
+  "modelType": "video",
+  "modelName": "doubao-seedance-2-0-fall",
+  "fields": [
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"label": "480p", "value": "480"},
+        {"label": "720p", "value": "720"},
+        {"label": "1080p", "value": "1080"}
+      ],
+      "defaultValue": "1080"
+    },
+    {
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
+      "required": true,
+      "max": 10,
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
+    },
+    {
+      "key": "duration",
+      "label": "Duration (s)",
+      "type": "number",
+      "required": true,
+      "min": 4,
+      "max": 10,
+      "step": 1,
+      "defaultValue": 5
+    }
+  ]
+}', 'Video generation form for doubao-seedance-2-0-fall', 1, 1778693946, 1778693946, NULL);
+INSERT INTO public.studio_form_schemas VALUES (10, 'doubao-seedance-2-0-fast-fall Video Form', 'video', 'doubao-seedance-2-0-fast-fall', 3, '{
+  "name": "Seedance 2.0 Fast Fall Video Form",
+  "modelType": "video",
+  "modelName": "doubao-seedance-2-0-fast-fall",
+  "fields": [
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"label": "480p", "value": "480"},
+        {"label": "720p", "value": "720"}
+      ],
+      "defaultValue": "720"
+    },
+    {
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
+      "required": true,
+      "max": 10,
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
+    },
+    {
+      "key": "duration",
+      "label": "Duration (s)",
+      "type": "number",
+      "required": true,
+      "min": 4,
+      "max": 10,
+      "step": 1,
+      "defaultValue": 5
+    }
+  ]
+}', 'Video generation form for doubao-seedance-2-0-fast-fall', 1, 1778693946, 1778693946, NULL);
 
 
 --
@@ -470,20 +519,22 @@ INSERT INTO public.studio_model_configs VALUES (1, 'Seedance 2.0 Fast', 'doubao-
 INSERT INTO public.studio_model_configs VALUES (11, 'Seedance 2.0 Fast', 'doubao-seedance-2-0-fast-260128', 'video', 'Fast video generation', '', '', '', 1, 1778693791, 1778693887, NULL);
 INSERT INTO public.studio_model_configs VALUES (12, 'Seedance 2.0', 'doubao-seedance-2-0-260128', 'video', 'High quality video generation', '', '', '', 1, 1778693791, 1778693944, NULL);
 INSERT INTO public.studio_model_configs VALUES (13, 'Happyhorse', 'alibaba/happyhorse-1.0/reference-to-video', 'video', 'Creative short video generation', '', '', '', 1, 1778693791, 1778694011, NULL);
+INSERT INTO public.studio_model_configs VALUES (14, 'Seedance 2.0 Fall', 'doubao-seedance-2-0-fall', 'video', 'High quality video generation with Mediakit upscaling', '', '', '', 1, 1778693791, 1778693791, NULL);
+INSERT INTO public.studio_model_configs VALUES (15, 'Seedance 2.0 Fast Fall', 'doubao-seedance-2-0-fast-fall', 'video', 'Fast video generation with Mediakit upscaling', '', '', '', 1, 1778693791, 1778693791, NULL);
 
 
 --
 -- Name: studio_form_schemas_id_seq; Type: SEQUENCE SET; Schema: public; Owner: root
 --
 
-SELECT pg_catalog.setval('public.studio_form_schemas_id_seq', 8, true);
+SELECT pg_catalog.setval('public.studio_form_schemas_id_seq', 10, true);
 
 
 --
 -- Name: studio_model_configs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: root
 --
 
-SELECT pg_catalog.setval('public.studio_model_configs_id_seq', 13, true);
+SELECT pg_catalog.setval('public.studio_model_configs_id_seq', 15, true);
 
 
 --

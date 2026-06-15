@@ -106,3 +106,342 @@ func ListStudioFormSchemas(modelType string, modelName string, onlyEnabled bool)
 	err := query.Order("model_name DESC, version DESC, updated_time DESC").Find(&list).Error
 	return list, err
 }
+
+// EnsureDefaultStudioData inserts built-in model configs and form schemas that may
+// be missing from the database (e.g. after an upgrade that introduced new models).
+// For fall models, it also upgrades v1 schemas to v2 (unified media_upload field).
+func EnsureDefaultStudioData() {
+	now := common.GetTimestamp()
+
+	type modelEntry struct {
+		Name        string
+		ModelName   string
+		Description string
+	}
+
+	modelEntries := []modelEntry{
+		{"Seedance 2.0 Fall", "doubao-seedance-2-0-fall", "High quality video generation with Mediakit upscaling"},
+		{"Seedance 2.0 Fast Fall", "doubao-seedance-2-0-fast-fall", "Fast video generation with Mediakit upscaling"},
+	}
+
+	for _, e := range modelEntries {
+		var count int64
+		DB.Model(&StudioModelConfig{}).Where("model_name = ?", e.ModelName).Count(&count)
+		if count == 0 {
+			cfg := &StudioModelConfig{
+				Name:        e.Name,
+				ModelName:   e.ModelName,
+				ModelType:   StudioModelTypeVideo,
+				Description: e.Description,
+				Status:      1,
+				CreatedTime: now,
+				UpdatedTime: now,
+			}
+			if err := DB.Create(cfg).Error; err != nil {
+				common.SysError("EnsureDefaultStudioData: insert model config " + e.ModelName + ": " + err.Error())
+			}
+		}
+	}
+
+	type schemaEntry struct {
+		Name      string
+		ModelName string
+		Version   int
+		Schema    string
+	}
+
+	fallSchema := `{
+  "name": "Seedance 2.0 Fall Video Form",
+  "modelType": "video",
+  "modelName": "doubao-seedance-2-0-fall",
+  "fields": [
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"label": "480p", "value": "480"},
+        {"label": "720p", "value": "720"},
+        {"label": "1080p", "value": "1080"}
+      ],
+      "defaultValue": "1080"
+    },
+    {
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
+      "required": true,
+      "max": 10,
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
+    },
+    {
+      "key": "duration",
+      "label": "Duration (s)",
+      "type": "number",
+      "required": true,
+      "min": 4,
+      "max": 10,
+      "step": 1,
+      "defaultValue": 5
+    }
+  ]
+}`
+
+	fastFallSchema := `{
+  "name": "Seedance 2.0 Fast Fall Video Form",
+  "modelType": "video",
+  "modelName": "doubao-seedance-2-0-fast-fall",
+  "fields": [
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"label": "480p", "value": "480"},
+        {"label": "720p", "value": "720"}
+      ],
+      "defaultValue": "720"
+    },
+    {
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
+      "required": true,
+      "max": 10,
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
+    },
+    {
+      "key": "duration",
+      "label": "Duration (s)",
+      "type": "number",
+      "required": true,
+      "min": 4,
+      "max": 10,
+      "step": 1,
+      "defaultValue": 5
+    }
+  ]
+}`
+
+	seedanceFastSchema := `{
+  "name": "Seedance 2.0 Fast Video Form",
+  "modelType": "video",
+  "modelName": "seedance2.0-fast",
+  "fields": [
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"label": "480p", "value": "480"},
+        {"label": "720p", "value": "720"}
+      ],
+      "defaultValue": "720"
+    },
+    {
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
+      "required": true,
+      "max": 10,
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
+    },
+    {
+      "key": "duration",
+      "label": "Duration (s)",
+      "type": "number",
+      "required": true,
+      "min": 4,
+      "max": 15,
+      "step": 1,
+      "defaultValue": 8
+    }
+  ]
+}`
+
+	seedanceSchema := `{
+  "name": "Seedance 2.0 Video Form",
+  "modelType": "video",
+  "modelName": "seedance2.0",
+  "fields": [
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"label": "480p", "value": "480"},
+        {"label": "720p", "value": "720"},
+        {"label": "1080p", "value": "1080"}
+      ],
+      "defaultValue": "1080"
+    },
+    {
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
+      "required": true,
+      "max": 10,
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
+    },
+    {
+      "key": "duration",
+      "label": "Duration (s)",
+      "type": "number",
+      "required": true,
+      "min": 4,
+      "max": 15,
+      "step": 1,
+      "defaultValue": 8
+    }
+  ]
+}`
+
+	doubaoFast260128Schema := `{
+  "name": "Seedance 2.0 Fast Video Form",
+  "modelType": "video",
+  "modelName": "doubao-seedance-2-0-fast-260128",
+  "fields": [
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"label": "480p", "value": "480"},
+        {"label": "720p", "value": "720"}
+      ],
+      "defaultValue": "720"
+    },
+    {
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
+      "required": true,
+      "max": 10,
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
+    },
+    {
+      "key": "duration",
+      "label": "Duration (s)",
+      "type": "number",
+      "required": true,
+      "min": 4,
+      "max": 15,
+      "step": 1,
+      "defaultValue": 8
+    }
+  ]
+}`
+
+	doubao260128Schema := `{
+  "name": "Seedance 2.0 Video Form",
+  "modelType": "video",
+  "modelName": "doubao-seedance-2-0-260128",
+  "fields": [
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"label": "480p", "value": "480"},
+        {"label": "720p", "value": "720"},
+        {"label": "1080p", "value": "1080"}
+      ],
+      "defaultValue": "1080"
+    },
+    {
+      "key": "media_urls",
+      "label": "Images / Videos",
+      "type": "media_upload",
+      "required": true,
+      "max": 10,
+      "helpText": "Upload images or videos, paste a URL, or pick from your asset library"
+    },
+    {
+      "key": "duration",
+      "label": "Duration (s)",
+      "type": "number",
+      "required": true,
+      "min": 4,
+      "max": 15,
+      "step": 1,
+      "defaultValue": 8
+    }
+  ]
+}`
+
+	schemaEntries := []schemaEntry{
+		{
+			Name:      "doubao-seedance-2-0-fall Video Form",
+			ModelName: "doubao-seedance-2-0-fall",
+			Version:   3,
+			Schema:    fallSchema,
+		},
+		{
+			Name:      "doubao-seedance-2-0-fast-fall Video Form",
+			ModelName: "doubao-seedance-2-0-fast-fall",
+			Version:   3,
+			Schema:    fastFallSchema,
+		},
+		{
+			Name:      "Seedance 2.0 Fast Video Form",
+			ModelName: "seedance2.0-fast",
+			Version:   3,
+			Schema:    seedanceFastSchema,
+		},
+		{
+			Name:      "Seedance 2.0 Video Form",
+			ModelName: "seedance2.0",
+			Version:   3,
+			Schema:    seedanceSchema,
+		},
+		{
+			Name:      "doubao-seedance-2-0-fast-260128 Video Form",
+			ModelName: "doubao-seedance-2-0-fast-260128",
+			Version:   3,
+			Schema:    doubaoFast260128Schema,
+		},
+		{
+			Name:      "doubao-seedance-2-0-260128 Video Form",
+			ModelName: "doubao-seedance-2-0-260128",
+			Version:   3,
+			Schema:    doubao260128Schema,
+		},
+	}
+
+	for _, e := range schemaEntries {
+		var existing StudioFormSchema
+		err := DB.Where("model_name = ?", e.ModelName).Order("version DESC").First(&existing).Error
+		if err != nil {
+			// No existing record — create it
+			s := &StudioFormSchema{
+				Name:        e.Name,
+				ModelType:   StudioModelTypeVideo,
+				ModelName:   e.ModelName,
+				Version:     e.Version,
+				Schema:      e.Schema,
+				Status:      1,
+				CreatedTime: now,
+				UpdatedTime: now,
+			}
+			if err := DB.Create(s).Error; err != nil {
+				common.SysError("EnsureDefaultStudioData: insert form schema " + e.ModelName + ": " + err.Error())
+			}
+		} else if existing.Version < e.Version {
+			// Upgrade older version to the latest schema
+			if err := DB.Model(&existing).Updates(map[string]any{
+				"version":      e.Version,
+				"schema":       e.Schema,
+				"name":         e.Name,
+				"updated_time": now,
+			}).Error; err != nil {
+				common.SysError("EnsureDefaultStudioData: upgrade form schema " + e.ModelName + ": " + err.Error())
+			}
+		}
+	}
+}

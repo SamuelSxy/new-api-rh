@@ -36,7 +36,7 @@ export interface StudioFormFieldOption {
 export interface StudioFormField {
   key: string
   label: string
-  type: 'text' | 'textarea' | 'number' | 'select' | 'switch' | 'image_upload' | 'asset_uri'
+  type: 'text' | 'textarea' | 'number' | 'select' | 'switch' | 'image_upload' | 'asset_uri' | 'media_upload'
   required?: boolean
   placeholder?: string
   helpText?: string
