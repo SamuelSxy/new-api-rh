@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,7 +19,9 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -289,4 +292,320 @@ func extractModelFromOperationName(name string) string {
 		}
 	}
 	return ""
+}
+
+// ============================
+// ImageTaskAdaptor — Gemini 图片生成
+// 将 /v1/images/generations 转换为 generateContent 调用，
+// 同步返回图片 data URI，立即写入任务日志。
+// ============================
+
+type ImageTaskAdaptor struct {
+	taskcommon.BaseBilling
+	apiKey  string
+	baseURL string
+}
+
+func (a *ImageTaskAdaptor) Init(info *relaycommon.RelayInfo) {
+	a.baseURL = info.ChannelBaseUrl
+	a.apiKey = info.ApiKey
+}
+
+func (a *ImageTaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	var imgReq dto.ImageRequest
+	if err := common.UnmarshalBodyReusable(c, &imgReq); err != nil {
+		return service.TaskErrorWrapper(err, "invalid_request", http.StatusBadRequest)
+	}
+	if strings.TrimSpace(imgReq.Prompt) == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest)
+	}
+
+	var images []string
+	if len(imgReq.Image) > 0 {
+		var imageVal interface{}
+		if err := common.Unmarshal(imgReq.Image, &imageVal); err == nil {
+			switch v := imageVal.(type) {
+			case string:
+				if v != "" {
+					images = append(images, v)
+				}
+			case []interface{}:
+				for _, img := range v {
+					if s, ok := img.(string); ok && s != "" {
+						images = append(images, s)
+					}
+				}
+			}
+		}
+	}
+
+	taskReq := relaycommon.TaskSubmitReq{
+		Model:  imgReq.Model,
+		Prompt: imgReq.Prompt,
+		Size:   imgReq.Size,
+		Images: images,
+	}
+
+	// Pro 模型专属参数：存入 Metadata 供 BuildRequestBody 转发
+	meta := map[string]interface{}{}
+	if imgReq.Watermark != nil {
+		// Watermark 复用为 enhancePrompt 开关（保留原语义）
+	}
+	if v, ok := imgReq.Extra["seed"]; ok {
+		meta["seed"] = v
+	}
+	if v, ok := imgReq.Extra["enhance_prompt"]; ok {
+		meta["enhance_prompt"] = v
+	}
+	if v, ok := imgReq.Extra["negative_prompt"]; ok {
+		meta["negative_prompt"] = v
+	}
+	if len(meta) > 0 {
+		taskReq.Metadata = meta
+	}
+
+	info.Action = constant.TaskActionImageGenerate
+	c.Set("task_request", taskReq)
+	return nil
+}
+
+func (a *ImageTaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	modelName := info.UpstreamModelName
+	version := model_setting.GetGeminiVersionSetting(modelName)
+
+	// 规范化 baseURL：移除尾部斜杠；若以 /v1 或 /v1beta 结尾则剥离，
+	// 以避免与下面拼接的 /{version}/models/... 产生重复版本号导致 404/405。
+	base := strings.TrimRight(a.baseURL, "/")
+	for _, suffix := range []string{"/v1beta", "/v1"} {
+		if strings.HasSuffix(base, suffix) {
+			base = strings.TrimSuffix(base, suffix)
+			break
+		}
+	}
+
+	// 原生 Gemini 渠道（类型 24）直接拼 /{version}/models/...
+	// OpenAI 兼容代理通常将 Gemini 原生 API 挂在 /gemini 前缀下，
+	// 例如 https://api.asiai.cloud/gemini/v1beta/models/...
+	var url string
+	if info.ChannelType == constant.ChannelTypeGemini {
+		url = fmt.Sprintf("%s/%s/models/%s:generateContent", base, version, modelName)
+	} else {
+		url = fmt.Sprintf("%s/gemini/%s/models/%s:generateContent", base, version, modelName)
+	}
+	common.SysLog(fmt.Sprintf("gemini_image: POST %s (model=%s, version=%s, channelType=%d)", url, modelName, version, info.ChannelType))
+	return url, nil
+}
+
+func (a *ImageTaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("x-goog-api-key", a.apiKey)
+	return nil
+}
+
+func (a *ImageTaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	v, ok := c.Get("task_request")
+	if !ok {
+		return nil, fmt.Errorf("task_request not found in context")
+	}
+	req, ok := v.(relaycommon.TaskSubmitReq)
+	if !ok {
+		return nil, fmt.Errorf("unexpected task_request type")
+	}
+
+	parts := []dto.GeminiPart{{Text: req.Prompt}}
+	for _, imgStr := range req.Images {
+		imgStr = strings.TrimSpace(imgStr)
+		if !strings.HasPrefix(imgStr, "data:") {
+			continue
+		}
+		rest := strings.TrimPrefix(imgStr, "data:")
+		idx := strings.Index(rest, ",")
+		if idx < 0 {
+			continue
+		}
+		meta := rest[:idx]
+		b64 := rest[idx+1:]
+		mimeType := "image/png"
+		if i := strings.Index(meta, ";"); i >= 0 {
+			mimeType = meta[:i]
+		} else if meta != "" {
+			mimeType = meta
+		}
+		parts = append(parts, dto.GeminiPart{
+			InlineData: &dto.GeminiInlineData{MimeType: mimeType, Data: b64},
+		})
+	}
+
+	body := dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{Role: "user", Parts: parts},
+		},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			ResponseModalities: []string{"IMAGE", "TEXT"},
+		},
+	}
+
+	// 应用 quality → imageSize 映射（由 task BuildRequestBody 处理，size 已通过 Size 传入）
+	// 转发 Pro 模型专属参数
+	if req.Metadata != nil {
+		if v, ok := req.Metadata["seed"]; ok {
+			switch n := v.(type) {
+			case float64:
+				s := int64(n)
+				body.GenerationConfig.Seed = &s
+			case int64:
+				body.GenerationConfig.Seed = &n
+			}
+		}
+		if v, ok := req.Metadata["enhance_prompt"]; ok {
+			if b, ok2 := v.(bool); ok2 {
+				body.EnhancePrompt = &b
+			}
+		}
+		if v, ok := req.Metadata["negative_prompt"]; ok {
+			if s, ok2 := v.(string); ok2 && s != "" {
+				body.NegativePrompt = s
+			}
+		}
+	}
+	data, err := common.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(data), nil
+}
+
+func (a *ImageTaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	return channel.DoTaskApiRequest(a, c, info, requestBody)
+}
+
+func (a *ImageTaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+	}
+	_ = resp.Body.Close()
+
+	var geminiResp dto.GeminiChatResponse
+	if err := common.Unmarshal(responseBody, &geminiResp); err != nil {
+		return "", nil, service.TaskErrorWrapper(err, "unmarshal_response_failed", http.StatusInternalServerError)
+	}
+
+	imageDataURI := extractGeminiImageDataURI(geminiResp)
+	if imageDataURI == "" {
+		return "", nil, service.TaskErrorWrapper(
+			fmt.Errorf("no image returned from Gemini"),
+			"no_image_in_response",
+			http.StatusBadGateway,
+		)
+	}
+
+	info.TaskRelayInfo.CompletedResult = &relaycommon.SyncTaskResult{
+		ResultURL: imageDataURI,
+	}
+
+	// 尝试上传到 TOS，成功则用 https:// URL 替换 data URI，
+	// 避免大体积 base64 存入数据库。
+	if finalURL, tosErr := uploadDataURIToTos(imageDataURI); tosErr == nil {
+		imageDataURI = finalURL
+		info.TaskRelayInfo.CompletedResult.ResultURL = finalURL
+	} else if system_setting.TosEnabled {
+		common.SysLog(fmt.Sprintf("gemini_image: TOS upload failed, fallback to data URI: %v", tosErr))
+	}
+
+	// 以 OpenAI images/generations 标准格式返回，前端可直接渲染，无需轮询。
+	// imageDataURI 是 TOS URL 或 data URI，放在 url 字段。
+	imageResp := dto.ImageResponse{
+		Created: time.Now().Unix(),
+		Data: []dto.ImageData{
+			{Url: imageDataURI},
+		},
+	}
+	c.JSON(http.StatusOK, imageResp)
+	return info.PublicTaskID, responseBody, nil
+}
+
+func extractGeminiImageDataURI(resp dto.GeminiChatResponse) string {
+	for _, candidate := range resp.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.InlineData == nil || part.InlineData.Data == "" {
+				continue
+			}
+			mime := part.InlineData.MimeType
+			if mime == "" {
+				mime = "image/png"
+			}
+			if strings.HasPrefix(mime, "image/") {
+				return fmt.Sprintf("data:%s;base64,%s", mime, part.InlineData.Data)
+			}
+		}
+	}
+	return ""
+}
+
+// uploadDataURIToTos 将 data URI 上传到 TOS。
+// TOS 未启用时返回 error，调用方应回退到 data URI。
+func uploadDataURIToTos(dataURI string) (string, error) {
+	if !system_setting.TosEnabled {
+		return "", fmt.Errorf("tos not enabled")
+	}
+
+	// 解析 data URI: data:<mime>;base64,<data>
+	if !strings.HasPrefix(dataURI, "data:") {
+		return "", fmt.Errorf("not a data URI")
+	}
+	rest := strings.TrimPrefix(dataURI, "data:")
+	idx := strings.Index(rest, ",")
+	if idx < 0 {
+		return "", fmt.Errorf("invalid data URI format")
+	}
+	meta := rest[:idx]
+	b64Data := rest[idx+1:]
+
+	var mimeType string
+	if i := strings.Index(meta, ";"); i >= 0 {
+		mimeType = meta[:i]
+	} else {
+		mimeType = meta
+	}
+	if mimeType == "" {
+		mimeType = "image/png"
+	}
+
+	// 确定文件扩展名
+	extMap := map[string]string{
+		"image/png":  ".png",
+		"image/jpeg": ".jpg",
+		"image/webp": ".webp",
+		"image/gif":  ".gif",
+	}
+	ext := extMap[mimeType]
+	if ext == "" {
+		ext = ".png"
+	}
+
+	// 解码 base64
+	imgBytes, err := base64.StdEncoding.DecodeString(b64Data)
+	if err != nil {
+		// 尝试 RawStdEncoding（无 padding）
+		imgBytes, err = base64.RawStdEncoding.DecodeString(b64Data)
+		if err != nil {
+			return "", fmt.Errorf("base64 decode: %w", err)
+		}
+	}
+
+	objectKey := fmt.Sprintf("gemini-image/%s%s", uuid.New().String(), ext)
+	return service.TosUploadFile(bytes.NewReader(imgBytes), objectKey, mimeType)
+}
+
+func (a *ImageTaskAdaptor) GetModelList() []string { return []string{} }
+func (a *ImageTaskAdaptor) GetChannelName() string  { return "gemini_image" }
+
+func (a *ImageTaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	return nil, fmt.Errorf("FetchTask not supported: gemini_image tasks complete synchronously")
+}
+
+func (a *ImageTaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+	return &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, Progress: "100%"}, nil
 }

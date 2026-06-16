@@ -13,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
@@ -330,10 +331,15 @@ func hasVideoInRequest(req relaycommon.TaskSubmitReq) bool {
 	return hasVideoInMetadata(req.Metadata)
 }
 
-// hasVideoInMetadata 检查 metadata 的 content 数组是否包含 video_url 条目。
+// hasVideoInMetadata 检查 metadata 是否包含视频输入。
+// 同时检查快捷字段 videourl 和 content 数组中的 video_url 条目。
 func hasVideoInMetadata(metadata map[string]interface{}) bool {
 	if metadata == nil {
 		return false
+	}
+	// 快捷字段：metadata.videourl
+	if vidURL, _ := metadata["videourl"].(string); vidURL != "" {
+		return true
 	}
 	contentRaw, ok := metadata["content"]
 	if !ok {
@@ -392,6 +398,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("[doubao] upstream request body: %s", string(data)))
 	return bytes.NewReader(data), nil
 }
 
@@ -471,25 +478,31 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		Content: []ContentItem{},
 	}
 
-	// Add images if present
-	if req.HasImage() {
-		for _, imgURL := range req.Images {
-			r.Content = append(r.Content, ContentItem{
-				Type: "image_url",
-				ImageURL: &MediaURL{
-					URL: imgURL,
-				},
-			})
-		}
+	// 将图片加入 content，统一设置 role: reference_image。
+	// 同时兼容单张（req.Image）和多张（req.Images）两种格式。
+	imageList := req.Images
+	if req.Image != "" && len(imageList) == 0 {
+		imageList = []string{req.Image}
+	}
+	for _, imgURL := range imageList {
+		r.Content = append(r.Content, ContentItem{
+			Type:     "image_url",
+			ImageURL: &MediaURL{URL: imgURL},
+			Role:     "reference_image",
+		})
 	}
 
 	// 合并顶层 Content 数组（curl/SDK 格式：{"type":"video_url","video_url":{"url":"..."},"role":"..."}）
+	// 对 video_url 条目若未指定 role，补充 reference_video。
 	for _, item := range req.Content {
 		var ci ContentItem
 		if b, err := common.Marshal(item); err == nil {
 			_ = common.Unmarshal(b, &ci)
 		}
 		if ci.Type != "" {
+			if ci.Type == "video_url" && ci.Role == "" {
+				ci.Role = "reference_video"
+			}
 			r.Content = append(r.Content, ci)
 		}
 	}
@@ -497,6 +510,25 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	metadata := req.Metadata
 	if err := taskcommon.UnmarshalMetadata(metadata, &r); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
+	}
+
+	// 处理 metadata 中的快捷字段：imageurl → reference_image，videourl → reference_video。
+	// 适用于创意工作台及 API 调用者直接在 metadata 里指定参考图/参考视频的场景。
+	if metadata != nil {
+		if imgURL, _ := metadata["imageurl"].(string); imgURL != "" {
+			r.Content = append(r.Content, ContentItem{
+				Type:     "image_url",
+				ImageURL: &MediaURL{URL: imgURL},
+				Role:     "reference_image",
+			})
+		}
+		if vidURL, _ := metadata["videourl"].(string); vidURL != "" {
+			r.Content = append(r.Content, ContentItem{
+				Type:     "video_url",
+				VideoURL: &MediaURL{URL: vidURL},
+				Role:     "reference_video",
+			})
+		}
 	}
 
 	// Studio/schema 历史配置里常见 resolution 为 "720" / "1080" / "1280x720"，

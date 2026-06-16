@@ -212,6 +212,9 @@ export function normalizeSchemaPayload(
     name: candidate.name || fallback.name,
     modelType: candidate.modelType || fallback.modelType,
     modelName: candidate.modelName || fallback.modelName,
+    ...(candidate.apiType === 'chat_completions' || candidate.apiType === 'image_generations'
+      ? { apiType: candidate.apiType }
+      : {}),
     fields,
   }
 }

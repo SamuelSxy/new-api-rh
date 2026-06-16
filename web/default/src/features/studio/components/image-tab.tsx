@@ -11,21 +11,14 @@ interface ImageTabProps {
   models: ModelOption[]
 }
 
-const DEFAULT_IMAGE_MODEL = 'rhart-image-n-pro-official/edit'
-
 export function ImageTab({ models }: ImageTabProps) {
   const { t } = useTranslation()
   const modelOptions = useMemo(() => {
-    if (models.some((item) => item.value === DEFAULT_IMAGE_MODEL)) {
-      return models
-    }
-    return [{ label: DEFAULT_IMAGE_MODEL, value: DEFAULT_IMAGE_MODEL }, ...models]
+    return models
   }, [models])
 
   const [model, setModel] = useState(
-    modelOptions.find((item) => item.value === DEFAULT_IMAGE_MODEL)?.value ||
-      modelOptions[0]?.value ||
-      ''
+    modelOptions[0]?.value || ''
   )
   const [prompt, setPrompt] = useState('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -185,14 +178,12 @@ export function ImageTab({ models }: ImageTabProps) {
 
   useEffect(() => {
     if (!model && modelOptions.length > 0) {
-      const preferred = modelOptions.find((item) => item.value === DEFAULT_IMAGE_MODEL)
-      setModel(preferred?.value || modelOptions[0].value)
+      setModel(modelOptions[0].value)
       return
     }
 
     if (model && !modelOptions.some((item) => item.value === model)) {
-      const preferred = modelOptions.find((item) => item.value === DEFAULT_IMAGE_MODEL)
-      setModel(preferred?.value || modelOptions[0]?.value || '')
+      setModel(modelOptions[0]?.value || '')
     }
   }, [model, modelOptions])
 
@@ -266,6 +257,7 @@ export function ImageTab({ models }: ImageTabProps) {
         ? formValues.image_urls.filter((item): item is string => typeof item === 'string')
         : []
 
+      // All models (including Gemini image models) use the task-based image_generations flow.
       const aspectRatio =
         typeof formValues.aspect_ratio === 'string' && formValues.aspect_ratio.trim()
           ? formValues.aspect_ratio

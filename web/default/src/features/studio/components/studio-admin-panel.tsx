@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select'
 import { getModels } from '@/features/models/api'
 import { STUDIO_TABS } from '../constants'
+import { getDefaultStudioSchema } from '../schema'
 import {
   createStudioAdminFormSchema,
   createStudioAdminModel,
@@ -39,287 +40,6 @@ type ModelDraft = {
   status: number
 }
 
-type StudioPreset = {
-  name: string
-  modelName: string
-  description: string
-  schemaName: string
-  schema: {
-    name: string
-    modelType: StudioModelType
-    modelName: string
-    fields: Array<Record<string, unknown>>
-  }
-}
-
-const imagePresets: StudioPreset[] = [
-  {
-    name: 'RunningHub Image Edit',
-    modelName: 'rhart-image-n-pro-official/edit',
-    description: 'RunningHub image-to-image editing workflow',
-    schemaName: 'RunningHub Image Edit Form',
-    schema: {
-      name: 'RunningHub Image Edit Form',
-      modelType: 'image',
-      modelName: 'rhart-image-n-pro-official/edit',
-      fields: [
-        {
-          key: 'image_urls',
-          label: 'Reference Images',
-          type: 'image_upload',
-          helpText: 'Upload one or more reference images',
-        },
-        {
-          key: 'aspect_ratio',
-          label: 'Aspect Ratio',
-          type: 'select',
-          options: [
-            { label: '1:1', value: '1:1' },
-            { label: '4:3', value: '4:3' },
-            { label: '3:4', value: '3:4' },
-            { label: '16:9', value: '16:9' },
-            { label: '9:16', value: '9:16' },
-          ],
-          defaultValue: '9:16',
-        },
-        {
-          key: 'resolution',
-          label: 'Resolution',
-          type: 'select',
-          options: [
-            { label: '1k', value: '1k' },
-            { label: '2k', value: '2k' },
-            { label: '4k', value: '4k' },
-          ],
-          defaultValue: '1k',
-        },
-      ],
-    },
-  },
-]
-
-const voicePresets: StudioPreset[] = [
-  {
-    name: 'RunningHub Speech 2.8 Turbo',
-    modelName: 'rhart-audio/text-to-audio/speech-2.8-turbo',
-    description: 'RunningHub text-to-audio speech workflow',
-    schemaName: 'RunningHub Speech 2.8 Turbo Form',
-    schema: {
-      name: 'RunningHub Speech 2.8 Turbo Form',
-      modelType: 'voice',
-      modelName: 'rhart-audio/text-to-audio/speech-2.8-turbo',
-      fields: [
-        {
-          key: 'voice',
-          label: 'Voice',
-          type: 'text',
-          placeholder: 'Elegant_Man',
-          defaultValue: 'Elegant_Man',
-        },
-        {
-          key: 'speed',
-          label: 'Speed',
-          type: 'number',
-          min: 0.25,
-          max: 4,
-          step: 0.05,
-          defaultValue: 1,
-        },
-        {
-          key: 'volume',
-          label: 'Volume',
-          type: 'number',
-          min: 0,
-          max: 2,
-          step: 0.1,
-          defaultValue: 1,
-        },
-        {
-          key: 'pitch',
-          label: 'Pitch',
-          type: 'number',
-          min: -12,
-          max: 12,
-          step: 1,
-          defaultValue: 0,
-        },
-        {
-          key: 'emotion',
-          label: 'Emotion',
-          type: 'text',
-          placeholder: 'happy',
-          defaultValue: 'happy',
-        },
-        {
-          key: 'response_format',
-          label: 'Response Format',
-          type: 'select',
-          options: [
-            { label: 'mp3', value: 'mp3' },
-            { label: 'wav', value: 'wav' },
-            { label: 'pcm', value: 'pcm' },
-          ],
-          defaultValue: 'mp3',
-        },
-        {
-          key: 'enable_base64_output',
-          label: 'Enable Base64 Output',
-          type: 'switch',
-          defaultValue: false,
-        },
-        {
-          key: 'english_normalization',
-          label: 'English Normalization',
-          type: 'switch',
-          defaultValue: false,
-        },
-      ],
-    },
-  },
-]
-
-const videoPresets: StudioPreset[] = [
-  {
-    name: 'Seedance 2.0 Fast',
-    modelName: 'seedance2.0-fast',
-    description: 'Fast video generation',
-    schemaName: 'Seedance 2.0 Fast Video Form',
-    schema: {
-      name: 'Seedance 2.0 Fast Video Form',
-      modelType: 'video',
-      modelName: 'seedance2.0-fast',
-      fields: [
-        {
-          key: 'resolution',
-          label: 'Resolution',
-          type: 'select',
-          required: true,
-          options: [
-            { label: '480p', value: '480' },
-            { label: '720p', value: '720' },
-          ],
-          defaultValue: '720',
-        },
-        {
-          key: 'image_urls',
-          label: 'Images (Local upload, multiple)',
-          type: 'image_upload',
-          required: true,
-          max: 10,
-          helpText: 'Images will be converted to base64 data URLs automatically',
-        },
-        {
-          key: 'video_url',
-          label: 'Reference Video URL',
-          type: 'text',
-          placeholder: 'https://example.com/reference.mp4',
-        },
-        {
-          key: 'duration',
-          label: 'Duration (s)',
-          type: 'number',
-          required: true,
-          min: 4,
-          max: 15,
-          step: 1,
-          defaultValue: 8,
-        },
-      ],
-    },
-  },
-  {
-    name: 'Seedance 2.0',
-    modelName: 'seedance2.0',
-    description: 'High quality video generation',
-    schemaName: 'Seedance 2.0 Video Form',
-    schema: {
-      name: 'Seedance 2.0 Video Form',
-      modelType: 'video',
-      modelName: 'seedance2.0',
-      fields: [
-        {
-          key: 'resolution',
-          label: 'Resolution',
-          type: 'select',
-          required: true,
-          options: [
-            { label: '480p', value: '480' },
-            { label: '720p', value: '720' },
-            { label: '1080p', value: '1080' },
-          ],
-          defaultValue: '1080',
-        },
-        {
-          key: 'image_urls',
-          label: 'Images (Local upload, multiple)',
-          type: 'image_upload',
-          required: true,
-          max: 10,
-          helpText: 'Images will be converted to base64 data URLs automatically',
-        },
-        {
-          key: 'video_url',
-          label: 'Reference Video URL',
-          type: 'text',
-          placeholder: 'https://example.com/reference.mp4',
-        },
-        {
-          key: 'duration',
-          label: 'Duration (s)',
-          type: 'number',
-          required: true,
-          min: 4,
-          max: 15,
-          step: 1,
-          defaultValue: 8,
-        },
-      ],
-    },
-  },
-  {
-    name: 'Happyhorse',
-    modelName: 'happyhorse',
-    description: 'Creative short video generation',
-    schemaName: 'Happyhorse Video Form',
-    schema: {
-      name: 'Happyhorse Video Form',
-      modelType: 'video',
-      modelName: 'happyhorse',
-      fields: [
-        {
-          key: 'resolution',
-          label: 'Resolution',
-          type: 'select',
-          required: true,
-          options: [
-            { label: '480p', value: '480' },
-            { label: '720p', value: '720' },
-            { label: '1080p', value: '1080' },
-          ],
-          defaultValue: '720',
-        },
-        {
-          key: 'image_urls',
-          label: 'Images (Local upload, multiple)',
-          type: 'image_upload',
-          required: true,
-          max: 8,
-          helpText: 'Images will be converted to base64 data URLs automatically',
-        },
-        {
-          key: 'duration',
-          label: 'Duration (s)',
-          type: 'number',
-          required: true,
-          min: 3,
-          max: 15,
-          step: 1,
-          defaultValue: 6,
-        },
-      ],
-    },
-  },
-] as const
 
 export function StudioAdminPanel() {
   const { t } = useTranslation()
@@ -597,97 +317,82 @@ export function StudioAdminPanel() {
     }
   }
 
-    const getPresetsByType = (type: StudioModelType): StudioPreset[] => {
-      switch (type) {
-        case STUDIO_TABS.IMAGE:
-          return imagePresets
-        case STUDIO_TABS.VOICE:
-          return voicePresets
-        case STUDIO_TABS.VIDEO:
-          return videoPresets
-        default:
-          return []
-      }
+  const handleInitPresets = async () => {
+    if (!modelDraft.model_name) {
+      toast.error(t('Please select or fill in a model key first'))
+      return
+    }
+    if (!modelDraft.name) {
+      toast.error(t('Please fill in the display name first'))
+      return
     }
 
-  const handleInitPresets = async () => {
-      const presets = getPresetsByType(managedType)
-      if (presets.length === 0) {
-        toast.info(t('No presets for this type'))
-        return
-      }
+    const defaultSchema = getDefaultStudioSchema(managedType)
+    const schemaPayload = {
+      ...defaultSchema,
+      name: `${modelDraft.name} Form`,
+      modelName: modelDraft.model_name,
+    }
+    const schemaText = JSON.stringify(schemaPayload, null, 2)
 
     setLoading(true)
     try {
       const [models, schemas] = await Promise.all([
-          getStudioAdminModels(managedType),
-          getStudioAdminFormSchemas(managedType),
+        getStudioAdminModels(managedType),
+        getStudioAdminFormSchemas(managedType),
       ])
 
-        for (const preset of presets) {
-        const existingModel = models.find(
-          (item) => item.model_name === preset.modelName
-        )
-
-        if (existingModel) {
-          await updateStudioAdminModel({
-            ...existingModel,
-            name: preset.name,
-            model_name: preset.modelName,
-            model_type: managedType,
-            description: preset.description,
-            capability: existingModel.capability || '',
-            default_params: existingModel.default_params || '',
-            visible_groups: existingModel.visible_groups || '',
-            status: 1,
-          })
-        } else {
-          await createStudioAdminModel({
-            name: preset.name,
-            model_name: preset.modelName,
-            model_type: managedType,
-            description: preset.description,
-            capability: '',
-            default_params: '',
-            visible_groups: '',
-            status: 1,
-          })
-        }
-
-        const existingSchema = schemas.find(
-          (item) => item.model_name === preset.modelName
-        )
-        const schemaText = JSON.stringify(preset.schema, null, 2)
-
-        if (existingSchema) {
-          await updateStudioAdminFormSchema({
-            id: existingSchema.id,
-            name: preset.schemaName,
-            model_type: managedType,
-            model_name: preset.modelName,
-            version: existingSchema.version || 1,
-            schema: schemaText,
-            description: `${typeLabel} generation form for ${preset.modelName}`,
-            status: 1,
-          })
-        } else {
-          await createStudioAdminFormSchema({
-            name: preset.schemaName,
-            model_type: managedType,
-            model_name: preset.modelName,
-            version: 1,
-            schema: schemaText,
-            description: `${typeLabel} generation form for ${preset.modelName}`,
-            status: 1,
-          })
-        }
+      const existingModel = models.find((item) => item.model_name === modelDraft.model_name)
+      if (existingModel) {
+        await updateStudioAdminModel({
+          ...existingModel,
+          name: modelDraft.name,
+          model_name: modelDraft.model_name,
+          model_type: managedType,
+          description: modelDraft.description,
+          capability: existingModel.capability || '',
+          default_params: existingModel.default_params || '',
+          visible_groups: existingModel.visible_groups || '',
+          status: 1,
+        })
+      } else {
+        await createStudioAdminModel({
+          name: modelDraft.name,
+          model_name: modelDraft.model_name,
+          model_type: managedType,
+          description: modelDraft.description,
+          capability: '',
+          default_params: '',
+          visible_groups: '',
+          status: 1,
+        })
       }
 
-      toast.success(
-        t('{{type}} model presets initialized', {
-          type: typeLabel,
+      const existingSchema = schemas.find((item) => item.model_name === modelDraft.model_name)
+      if (existingSchema) {
+        await updateStudioAdminFormSchema({
+          id: existingSchema.id,
+          name: `${modelDraft.name} Form`,
+          model_type: managedType,
+          model_name: modelDraft.model_name,
+          version: existingSchema.version || 1,
+          schema: schemaText,
+          description: `${typeLabel} generation form for ${modelDraft.model_name}`,
+          status: 1,
         })
-      )
+      } else {
+        await createStudioAdminFormSchema({
+          name: `${modelDraft.name} Form`,
+          model_type: managedType,
+          model_name: modelDraft.model_name,
+          version: 1,
+          schema: schemaText,
+          description: `${typeLabel} generation form for ${modelDraft.model_name}`,
+          status: 1,
+        })
+      }
+
+      toast.success(t('Default schema initialized for {{name}}', { name: modelDraft.name }))
       await refreshData(modelDraft.model_name)
     } finally {
       setLoading(false)
@@ -740,7 +445,7 @@ export function StudioAdminPanel() {
           </Button>
           {managedType !== STUDIO_TABS.SCRIPT && (
             <Button onClick={() => void handleInitPresets()} disabled={loading}>
-              {t('Initialize {{type}} Presets', { type: typeLabel })}
+              {t('Initialize Default Schema')}
             </Button>
           )}
         </div>

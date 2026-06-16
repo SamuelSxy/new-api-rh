@@ -688,6 +688,16 @@ type TaskRelayInfo struct {
 	// 非空时表示需要在 doubao 任务成功后调用 Mediakit enhance-video 超分到该分辨率。
 	// doubao adaptor 将实际请求分辨率改写为 480p，原始分辨率存放在此字段。
 	MediakitTargetResolution string
+
+	// CompletedResult 由同步完成的适配器（如 GeminiImage）在 DoResponse 中设置。
+	// 非 nil 时，控制器在插入任务记录时直接将状态标记为 SUCCESS，跳过轮询阶段。
+	CompletedResult *SyncTaskResult
+}
+
+// SyncTaskResult 存储同步适配器（如 GeminiImage）的立即完成结果。
+type SyncTaskResult struct {
+	// ResultURL 是任务结果图片的 data URI，存入 task.PrivateData.ResultURL。
+	ResultURL string
 }
 
 type TaskSubmitReq struct {

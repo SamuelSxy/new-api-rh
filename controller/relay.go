@@ -467,11 +467,14 @@ func RelayNotFound(c *gin.Context) {
 	})
 }
 
-// RelayImageOrTask 根据渠道类型动态分发：
-// - task 类渠道（如 RunningHub）走异步 task 流程
+// RelayImageOrTask 根据渠道类型/模型名动态分发：
+// - Gemini 渠道、Gemini 图片模型（任何渠道）、图像异步任务渠道（RunningHub、Jimeng 等）走 task 流程
 // - 其他渠道走标准 OpenAI image 同步流程
 func RelayImageOrTask(c *gin.Context) {
-	if relay.GetTaskAdaptor(relay.GetTaskPlatform(c)) != nil {
+	modelName := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	if relay.GetImageTaskAdaptor(relay.GetTaskPlatform(c), modelName) != nil {
+		// 标记为图片任务模式；RelayTaskSubmit 依据此标记按当前渠道+模型动态选适配器
+		c.Set("image_task_mode", true)
 		RelayTask(c)
 		return
 	}
@@ -614,6 +617,14 @@ func RelayTask(c *gin.Context) {
 		}
 		if relayInfo.TaskRelayInfo != nil && relayInfo.TaskRelayInfo.MediakitTargetResolution != "" {
 			task.PrivateData.MediakitTargetResolution = relayInfo.TaskRelayInfo.MediakitTargetResolution
+		}
+		// 同步完成的适配器（如 GeminiImage）在 DoResponse 中设置 CompletedResult，
+		// 任务无需进入轮询阶段，直接标记为 SUCCESS 并存入图片 result_url。
+		if relayInfo.TaskRelayInfo != nil && relayInfo.TaskRelayInfo.CompletedResult != nil {
+			task.Status = model.TaskStatusSuccess
+			task.Progress = "100%"
+			task.FinishTime = time.Now().Unix()
+			task.PrivateData.ResultURL = relayInfo.TaskRelayInfo.CompletedResult.ResultURL
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

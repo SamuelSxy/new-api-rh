@@ -149,7 +149,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if platform == "" {
 		platform = GetTaskPlatform(c)
 	}
-	adaptor := GetTaskAdaptor(platform)
+	// 图片任务模式：优先取图片专用适配器（每次重新选择，避免重试复用过期实例）
+	var adaptor channel.TaskAdaptor
+	if c.GetBool("image_task_mode") {
+		adaptor = GetImageTaskAdaptor(platform, info.OriginModelName)
+	}
+	if adaptor == nil {
+		adaptor = GetTaskAdaptor(platform)
+	}
 	if adaptor == nil {
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
 	}

@@ -53,6 +53,13 @@ export interface StudioFormSchema {
   name: string
   modelType: StudioModelType
   modelName?: string
+  /**
+   * Controls which API endpoint the image tab uses for generation.
+   * - "image_generations" (default): POST /v1/images/generations  — OpenAI image format
+   * - "chat_completions":           POST /v1/chat/completions     — for Gemini Flash / models
+   *                                   that output images via generateContent
+   */
+  apiType?: 'image_generations' | 'chat_completions'
   fields: StudioFormField[]
 }
 

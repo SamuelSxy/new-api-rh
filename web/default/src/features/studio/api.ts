@@ -189,6 +189,44 @@ export async function generateImage(payload: ImageRequest): Promise<ImageRespons
   return res.data
 }
 
+/**
+ * Generate an image via chat completions (for models like gemini-*-image that
+ * produce images through generateContent / response_modalities rather than
+ * the standard /v1/images/generations endpoint).
+ */
+export async function generateImageViaChat(
+  model: string,
+  prompt: string,
+  metadata?: Record<string, unknown>
+): Promise<unknown> {
+  const messages: Array<{ role: string; content: string }> = []
+  if (metadata?.imageUrls && Array.isArray(metadata.imageUrls) && metadata.imageUrls.length > 0) {
+    const imageContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      { type: 'text', text: prompt },
+      ...((metadata.imageUrls as string[]).map((url) => ({
+        type: 'image_url',
+        image_url: { url },
+      }))),
+    ]
+    messages.push({ role: 'user', content: JSON.stringify(imageContent) })
+  } else {
+    messages.push({ role: 'user', content: prompt })
+  }
+  const payload: Record<string, unknown> = {
+    model,
+    messages,
+    response_modalities: ['IMAGE', 'TEXT'],
+  }
+  if (metadata) {
+    const { imageUrls: _imageUrls, ...rest } = metadata
+    Object.assign(payload, rest)
+  }
+  const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
 export async function generateVoice(
   payload: VoiceRequest
 ): Promise<Blob | Record<string, unknown>> {

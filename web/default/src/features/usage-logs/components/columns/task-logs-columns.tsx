@@ -338,7 +338,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const isSuccess = status === TASK_STATUS.SUCCESS
         const hasResultUrl =
           typeof log.result_url === 'string' &&
-          /^https?:\/\//.test(log.result_url)
+          (/^https?:\/\//.test(log.result_url) || log.result_url.startsWith('data:image/'))
 
         if (isSuccess && isVideoTask && hasResultUrl) {
           return <VideoPreviewCell log={log} />

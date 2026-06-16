@@ -2,6 +2,7 @@ package relay
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -164,6 +165,55 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &hailuo.TaskAdaptor{}
 		case constant.ChannelTypeRunningHub:
 			return &taskrunninghub.TaskAdaptor{}
+		}
+	}
+	return nil
+}
+
+// IsGeminiImageModel returns true if modelName is a Gemini image-generation
+// model that must go through generateContent + responseModalities, regardless
+// of the channel type it is configured on (e.g. a Custom channel proxying to
+// Gemini API would still need this routing).
+func IsGeminiImageModel(modelName string) bool {
+	if modelName == "" {
+		return false
+	}
+	m := strings.ToLower(modelName)
+	if !strings.Contains(m, "gemini") {
+		return false
+	}
+	// Match patterns like:
+	//   gemini-2.0-flash-preview-image-generation
+	//   gemini-2.5-flash-image
+	//   gemini-3-pro-image
+	//   gemini-3.1-flash-image
+	return strings.Contains(m, "image") || strings.Contains(m, "flash-preview")
+}
+
+// GetImageTaskAdaptor returns a TaskAdaptor only for channel types (or model
+// names) that handle image generation as task-based requests.
+// - Gemini channel OR any model matching IsGeminiImageModel returns the Gemini
+//   ImageTaskAdaptor (generateContent + responseModalities=["IMAGE","TEXT"])
+// - RunningHub/Jimeng/Ali/MiniMax/VolcEngine return their standard task adaptors
+// - Pure-video channels (Kling, Vidu, Sora, VertexAI) return nil so that
+//   /v1/images/generations falls through to the standard synchronous image relay.
+func GetImageTaskAdaptor(platform constant.TaskPlatform, modelName string) channel.TaskAdaptor {
+	// Model-name override: Gemini image models must use generateContent,
+	// even if hosted on a Custom/OpenAI-compatible channel that proxies to Gemini.
+	if IsGeminiImageModel(modelName) {
+		return &taskGemini.ImageTaskAdaptor{}
+	}
+	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
+		switch channelType {
+		case constant.ChannelTypeGemini:
+			return &taskGemini.ImageTaskAdaptor{}
+		case constant.ChannelTypeRunningHub,
+			constant.ChannelTypeJimeng,
+			constant.ChannelTypeAli,
+			constant.ChannelTypeMiniMax,
+			constant.ChannelTypeDoubaoVideo,
+			constant.ChannelTypeVolcEngine:
+			return GetTaskAdaptor(platform)
 		}
 	}
 	return nil

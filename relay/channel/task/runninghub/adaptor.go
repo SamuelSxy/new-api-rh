@@ -504,6 +504,16 @@ metadata["style"] = style
 for k, v := range imgReq.Extra {
 var val interface{}
 if err := common.Unmarshal(v, &val); err == nil {
+// If the extra field is a "metadata" object, flatten its contents into
+// the top-level metadata map instead of nesting it as metadata["metadata"].
+if k == "metadata" {
+if nested, ok := val.(map[string]interface{}); ok {
+for nk, nv := range nested {
+metadata[nk] = nv
+}
+continue
+}
+}
 metadata[k] = val
 }
 }
