@@ -1,6 +1,8 @@
 package system_setting
 
 import (
+	"os"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 )
@@ -19,8 +21,13 @@ func init() {
 }
 
 func syncThemeToCommon() {
-	if themeSettings.Frontend != "default" && themeSettings.Frontend != "classic" {
+	if themeSettings.Frontend != "default" && themeSettings.Frontend != "classic" && themeSettings.Frontend != "hai" {
 		themeSettings.Frontend = "default"
+	}
+	// The embedded frontend is fixed at build time. When THEME is set, the
+	// build-pinned theme wins and the DB option must not override it.
+	if os.Getenv("THEME") != "" {
+		return
 	}
 	common.SetTheme(themeSettings.Frontend)
 }

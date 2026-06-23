@@ -1,0 +1,76 @@
+# New-API (hai 主题) Docker Compose —— 与默认站点同机共存，完全独立
+#
+# 关键隔离点（避免与默认站点冲突）：
+#   - 容器名: new-api-hai / postgres-hai / redis-hai
+#   - 网络:   new-api-hai-network
+#   - 数据卷: pg_data_hai（独立数据库）
+#   - 端口:   宿主 3002 → 容器 3000（默认站点用 3001）
+#   - 镜像:   new-api-hai:latest（由 deploy-hai.sh 用 --build-arg THEME=hai 构建）
+#
+# ⚠️  凭据通过同目录下的 .env 文件注入（已 gitignore）。首次部署需在服务器
+#     ${SERVER_DIR} 创建 .env，至少包含：
+#         POSTGRES_PASSWORD=<强随机密码>
+#         REDIS_PASSWORD=<强随机密码>
+#     缺失时 docker compose 会报 "variable is not set" 并中止。
+
+version: '3.4'
+
+services:
+  new-api:
+    image: new-api-hai:latest # 由 deploy-hai.sh 在本地用 docker build --build-arg THEME=hai 构建并加载到服务器
+    container_name: new-api-hai
+    restart: always
+    command: --log-dir /app/logs
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      - THEME=hai # 运行时主题身份，与构建期一致
+      - SQL_DSN=postgresql://root:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres-hai:5432/new-api
+      - REDIS_CONN_STRING=redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis-hai:6379
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - NODE_NAME=new-api-hai-node-1
+    depends_on:
+      - redis-hai
+      - postgres-hai
+    networks:
+      - new-api-hai-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis-hai:
+    image: redis:latest
+    container_name: redis-hai
+    restart: always
+    command: ["sh", "-c", "redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    networks:
+      - new-api-hai-network
+
+  postgres-hai:
+    image: postgres:15
+    container_name: postgres-hai
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: new-api
+    volumes:
+      - pg_data_hai:/var/lib/postgresql/data
+    networks:
+      - new-api-hai-network
+
+volumes:
+  pg_data_hai:
+
+networks:
+  new-api-hai-network:
+    driver: bridge

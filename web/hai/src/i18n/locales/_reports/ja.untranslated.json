@@ -1,0 +1,13 @@
+{
+  "Default seconds": "Default seconds",
+  "Per-second": "Per-second",
+  "Per-second billing": "Per-second billing",
+  "USD price per second for video generation.": "USD price per second for video generation.",
+  "$/s price": "$/s price",
+  "Default duration when request does not specify seconds.": "Default duration when request does not specify seconds.",
+  "Default {{n}}s": "Default {{n}}s",
+  "Video input multiplier": "Video input multiplier",
+  "Video Input Pricing": "Video Input Pricing",
+  "Effective $/s": "Effective $/s",
+  "With video": "With video"
+}

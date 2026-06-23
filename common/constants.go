@@ -30,9 +30,9 @@ func GetTheme() string {
 }
 
 // SetTheme updates the frontend theme atomically.
-// Only "default" and "classic" are accepted; other values are silently ignored.
+// Only "default", "classic" and "hai" are accepted; other values are silently ignored.
 func SetTheme(t string) {
-	if t == "default" || t == "classic" {
+	if t == "default" || t == "classic" || t == "hai" {
 		themeValue.Store(t)
 	}
 }
