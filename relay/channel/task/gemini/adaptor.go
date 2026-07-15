@@ -3,6 +3,7 @@ package gemini
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -320,23 +322,62 @@ func (a *ImageTaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *rel
 		return service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest)
 	}
 
-	var images []string
+	var rawImages []string
 	if len(imgReq.Image) > 0 {
 		var imageVal interface{}
 		if err := common.Unmarshal(imgReq.Image, &imageVal); err == nil {
 			switch v := imageVal.(type) {
 			case string:
 				if v != "" {
-					images = append(images, v)
+					rawImages = append(rawImages, v)
 				}
 			case []interface{}:
 				for _, img := range v {
 					if s, ok := img.(string); ok && s != "" {
-						images = append(images, s)
+						rawImages = append(rawImages, s)
 					}
 				}
 			}
 		}
+	}
+
+	// 创意控制台等前端把参考图放在 metadata.imageUrls 里（通常是 TOS HTTP URL）。
+	if mRaw, ok := imgReq.Extra["metadata"]; ok && len(mRaw) > 0 {
+		var meta map[string]interface{}
+		if err := common.Unmarshal(mRaw, &meta); err == nil {
+			if v, ok2 := meta["imageUrls"]; ok2 {
+				if arr, ok3 := v.([]interface{}); ok3 {
+					for _, item := range arr {
+						if s, ok4 := item.(string); ok4 && s != "" {
+							rawImages = append(rawImages, s)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	images := make([]string, 0, len(rawImages))
+	for _, s := range rawImages {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if strings.HasPrefix(s, "data:") {
+			images = append(images, s)
+			continue
+		}
+		if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+			mimeType, b64, err := service.GetImageFromUrl(s)
+			if err != nil {
+				common.SysLog(fmt.Sprintf("gemini_image: fetch reference image failed url=%s err=%v", s, err))
+				return service.TaskErrorWrapper(err, "fetch_reference_image_failed", http.StatusBadGateway)
+			}
+			images = append(images, fmt.Sprintf("data:%s;base64,%s", mimeType, b64))
+			continue
+		}
+		// 视为已 base64 编码的纯数据，按 PNG 处理。
+		images = append(images, "data:image/png;base64,"+s)
 	}
 
 	taskReq := relaycommon.TaskSubmitReq{
@@ -348,17 +389,11 @@ func (a *ImageTaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *rel
 
 	// Pro 模型专属参数：存入 Metadata 供 BuildRequestBody 转发
 	meta := map[string]interface{}{}
-	if imgReq.Watermark != nil {
-		// Watermark 复用为 enhancePrompt 开关（保留原语义）
-	}
 	if v, ok := imgReq.Extra["seed"]; ok {
-		meta["seed"] = v
-	}
-	if v, ok := imgReq.Extra["enhance_prompt"]; ok {
-		meta["enhance_prompt"] = v
-	}
-	if v, ok := imgReq.Extra["negative_prompt"]; ok {
-		meta["negative_prompt"] = v
+		var seedVal float64
+		if err := common.Unmarshal(v, &seedVal); err == nil {
+			meta["seed"] = seedVal
+		}
 	}
 	if len(meta) > 0 {
 		taskReq.Metadata = meta
@@ -370,36 +405,49 @@ func (a *ImageTaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *rel
 }
 
 func (a *ImageTaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	base := strings.TrimRight(a.baseURL, "/")
+
+	// 原生 Gemini 渠道（类型 24）：剥离版本后缀后拼 /:version/models/:model:generateContent
+	if info.ChannelType == constant.ChannelTypeGemini {
+		modelName := info.UpstreamModelName
+		version := model_setting.GetGeminiVersionSetting(modelName)
+		for _, suffix := range []string{"/v1beta", "/v1"} {
+			if strings.HasSuffix(base, suffix) {
+				base = strings.TrimSuffix(base, suffix)
+				break
+			}
+		}
+		url := fmt.Sprintf("%s/%s/models/%s:generateContent", base, version, modelName)
+		common.SysLog(fmt.Sprintf("gemini_image: POST %s (native, model=%s)", url, modelName))
+		return url, nil
+	}
+
+	// OpenAI 兼容代理：代理不做格式转换，直接透传到 Google Gemini。
+	// 需要使用 Gemini 原生格式，但代理在 /gemini 前缀下路由。
 	modelName := info.UpstreamModelName
 	version := model_setting.GetGeminiVersionSetting(modelName)
-
-	// 规范化 baseURL：移除尾部斜杠；若以 /v1 或 /v1beta 结尾则剥离，
-	// 以避免与下面拼接的 /{version}/models/... 产生重复版本号导致 404/405。
-	base := strings.TrimRight(a.baseURL, "/")
 	for _, suffix := range []string{"/v1beta", "/v1"} {
 		if strings.HasSuffix(base, suffix) {
 			base = strings.TrimSuffix(base, suffix)
 			break
 		}
 	}
-
-	// 原生 Gemini 渠道（类型 24）直接拼 /{version}/models/...
-	// OpenAI 兼容代理通常将 Gemini 原生 API 挂在 /gemini 前缀下，
-	// 例如 https://api.asiai.cloud/gemini/v1beta/models/...
-	var url string
-	if info.ChannelType == constant.ChannelTypeGemini {
-		url = fmt.Sprintf("%s/%s/models/%s:generateContent", base, version, modelName)
-	} else {
-		url = fmt.Sprintf("%s/gemini/%s/models/%s:generateContent", base, version, modelName)
-	}
-	common.SysLog(fmt.Sprintf("gemini_image: POST %s (model=%s, version=%s, channelType=%d)", url, modelName, version, info.ChannelType))
+	url := fmt.Sprintf("%s/gemini/%s/models/%s:generateContent", base, version, modelName)
+	common.SysLog(fmt.Sprintf("gemini_image: POST %s (proxy-passthrough, model=%s)", url, modelName))
 	return url, nil
 }
 
 func (a *ImageTaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("x-goog-api-key", a.apiKey)
+	if info.ChannelType == constant.ChannelTypeGemini {
+		// 原生 Gemini API 使用 API Key header
+		req.Header.Set("x-goog-api-key", a.apiKey)
+	} else {
+		// 代理兼容：同时发送 Bearer 和 x-goog-api-key，避免网关鉴权分支不一致。
+		req.Header.Set("Authorization", "Bearer "+a.apiKey)
+		req.Header.Set("x-goog-api-key", a.apiKey)
+	}
 	return nil
 }
 
@@ -413,6 +461,8 @@ func (a *ImageTaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.Re
 		return nil, fmt.Errorf("unexpected task_request type")
 	}
 
+	// 原生渠道和代理渠道均使用 Gemini 原生格式。
+	// 代理（如 api.asiai.cloud）不做格式转换，直接透传到 Google Gemini API。
 	parts := []dto.GeminiPart{{Text: req.Prompt}}
 	for _, imgStr := range req.Images {
 		imgStr = strings.TrimSpace(imgStr)
@@ -437,39 +487,32 @@ func (a *ImageTaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.Re
 		})
 	}
 
-	body := dto.GeminiChatRequest{
+	inner := dto.GeminiChatRequest{
 		Contents: []dto.GeminiChatContent{
 			{Role: "user", Parts: parts},
 		},
 		GenerationConfig: dto.GeminiChatGenerationConfig{
 			ResponseModalities: []string{"IMAGE", "TEXT"},
+			ImageConfig:        json.RawMessage(`{}`),
 		},
 	}
 
-	// 应用 quality → imageSize 映射（由 task BuildRequestBody 处理，size 已通过 Size 传入）
-	// 转发 Pro 模型专属参数
 	if req.Metadata != nil {
-		if v, ok := req.Metadata["seed"]; ok {
-			switch n := v.(type) {
+		if sv, ok2 := req.Metadata["seed"]; ok2 {
+			switch n := sv.(type) {
 			case float64:
 				s := int64(n)
-				body.GenerationConfig.Seed = &s
+				inner.GenerationConfig.Seed = &s
 			case int64:
-				body.GenerationConfig.Seed = &n
-			}
-		}
-		if v, ok := req.Metadata["enhance_prompt"]; ok {
-			if b, ok2 := v.(bool); ok2 {
-				body.EnhancePrompt = &b
-			}
-		}
-		if v, ok := req.Metadata["negative_prompt"]; ok {
-			if s, ok2 := v.(string); ok2 && s != "" {
-				body.NegativePrompt = s
+				inner.GenerationConfig.Seed = &n
 			}
 		}
 	}
-	data, err := common.Marshal(body)
+
+	// 原生渠道与代理渠道一律使用 Gemini generateContent 原生 body。
+	// 之前曾在代理路径里把 model/prompt 加到顶层，结果被透传到 Google 后
+	// 会被 "Unknown name \"prompt\"" 拒绝。
+	data, err := common.Marshal(inner)
 	if err != nil {
 		return nil, err
 	}
@@ -487,6 +530,7 @@ func (a *ImageTaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info 
 	}
 	_ = resp.Body.Close()
 
+	// 原生渠道和代理渠道均返回 Gemini generateContent 响应格式。
 	var geminiResp dto.GeminiChatResponse
 	if err := common.Unmarshal(responseBody, &geminiResp); err != nil {
 		return "", nil, service.TaskErrorWrapper(err, "unmarshal_response_failed", http.StatusInternalServerError)
@@ -494,8 +538,13 @@ func (a *ImageTaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info 
 
 	imageDataURI := extractGeminiImageDataURI(geminiResp)
 	if imageDataURI == "" {
+		snippet := string(responseBody)
+		if len(snippet) > 1024 {
+			snippet = snippet[:1024] + "...(truncated)"
+		}
+		common.SysLog(fmt.Sprintf("gemini_image: no inline image, body=%s", snippet))
 		return "", nil, service.TaskErrorWrapper(
-			fmt.Errorf("no image returned from Gemini"),
+			fmt.Errorf("no image in response: %s", snippet),
 			"no_image_in_response",
 			http.StatusBadGateway,
 		)
@@ -522,8 +571,52 @@ func (a *ImageTaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info 
 			{Url: imageDataURI},
 		},
 	}
+	// tiered_expr 计费：用上游 usageMetadata 真实 token 重算 quota，覆盖预扣值。
+	// RelayTaskSubmit 后续 SettleBilling 会基于此做差额结算。
+	if info.TieredBillingSnapshot != nil && geminiResp.UsageMetadata.TotalTokenCount > 0 {
+		usage := normalizeGeminiUsage(&geminiResp.UsageMetadata)
+		usedVars := billingexpr.UsedVars(info.TieredBillingSnapshot.ExprString)
+		if ok, actualQuota, _ := service.TryTieredSettle(info, service.BuildTieredTokenParams(usage, false, usedVars)); ok && actualQuota > 0 {
+			info.PriceData.Quota = actualQuota
+		}
+	}
+
 	c.JSON(http.StatusOK, imageResp)
 	return info.PublicTaskID, responseBody, nil
+}
+
+// normalizeGeminiUsage 把 Gemini UsageMetadata 适配到 dto.Usage，
+// 供 BuildTieredTokenParams 读取。Gemini 的 PromptTokensDetails / CandidatesTokensDetails
+// 是 [{modality, tokenCount}] 数组，按 modality 分到 image / text token 桶。
+// thoughtsTokenCount 是模型的思考 token，按 output text 计费（Gemini 定价把 thinking 当 output 收费）。
+func normalizeGeminiUsage(m *dto.GeminiUsageMetadata) *dto.Usage {
+	u := &dto.Usage{
+		PromptTokens:     m.PromptTokenCount,
+		CompletionTokens: m.CandidatesTokenCount + m.ThoughtsTokenCount,
+		TotalTokens:      m.TotalTokenCount,
+	}
+	u.CompletionTokenDetails.TextTokens = m.ThoughtsTokenCount
+	for _, d := range m.PromptTokensDetails {
+		switch strings.ToUpper(d.Modality) {
+		case "IMAGE":
+			u.PromptTokensDetails.ImageTokens += d.TokenCount
+		case "AUDIO":
+			u.PromptTokensDetails.AudioTokens += d.TokenCount
+		case "TEXT":
+			u.PromptTokensDetails.TextTokens += d.TokenCount
+		}
+	}
+	for _, d := range m.CandidatesTokensDetails {
+		switch strings.ToUpper(d.Modality) {
+		case "IMAGE":
+			u.CompletionTokenDetails.ImageTokens += d.TokenCount
+		case "AUDIO":
+			u.CompletionTokenDetails.AudioTokens += d.TokenCount
+		case "TEXT":
+			u.CompletionTokenDetails.TextTokens += d.TokenCount
+		}
+	}
+	return u
 }
 
 func extractGeminiImageDataURI(resp dto.GeminiChatResponse) string {

@@ -17,6 +17,7 @@ const (
 	TaskActionReferenceGenerate = "referenceGenerate"
 	TaskActionRemix             = "remixGenerate"
 	TaskActionImageGenerate     = "imageGenerate"
+	TaskActionImageEdit         = "imageEdit"
 	TaskActionTextOutput        = "textOutput"        // RunningHub text-output workflow
 	TaskActionAudioGenerate     = "audioGenerate"     // RunningHub audio/TTS workflow
 )

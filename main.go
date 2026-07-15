@@ -185,11 +185,19 @@ func main() {
 	InjectGoogleAnalytics()
 
 	// 设置路由
+	var canvasAssets *router.ThemeAssets
+	if canvasDistPath != "" {
+		canvasAssets = &router.ThemeAssets{
+			BuildFS:   canvasBuildFS,
+			IndexPage: canvasIndexPage,
+			DistPath:  canvasDistPath,
+		}
+	}
 	router.SetRouter(server, router.ThemeAssets{
 		BuildFS:   buildFS,
 		IndexPage: indexPage,
 		DistPath:  buildDistPath,
-	})
+	}, canvasAssets)
 	var port = os.Getenv("PORT")
 	if port == "" {
 		port = strconv.Itoa(*common.Port)

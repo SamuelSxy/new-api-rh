@@ -27,6 +27,7 @@ import {
   ListTodo,
   WandSparkles,
   MessageSquare,
+  Palette,
   Radio,
   Settings,
   Ticket,
@@ -35,7 +36,8 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { type SidebarData } from '@/components/layout/types'
+import { type NavLink, type SidebarData } from '@/components/layout/types'
+import { useStatus } from './use-status'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -45,6 +47,54 @@ import { type SidebarData } from '@/components/layout/types'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const canvasEnabled = Boolean(status?.enable_canvas)
+
+  const generalItems: NavLink[] = [
+    {
+      title: t('Overview'),
+      url: '/dashboard/overview',
+      icon: Activity,
+    },
+    {
+      title: t('Dashboard'),
+      url: '/dashboard/models',
+      icon: LayoutDashboard,
+    },
+    {
+      title: t('API Keys'),
+      url: '/keys',
+      icon: Key,
+    },
+    {
+      title: t('Usage Logs'),
+      url: '/usage-logs/common',
+      icon: FileText,
+    },
+    {
+      title: t('Task Logs'),
+      url: '/usage-logs/task',
+      activeUrls: ['/usage-logs/drawing'],
+      configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
+      icon: ListTodo,
+    },
+    {
+      title: t('Studio'),
+      url: '/studio',
+      activeUrls: ['/studio/'],
+      configUrls: ['/studio', '/studio/'],
+      icon: WandSparkles,
+    },
+  ]
+
+  if (canvasEnabled && typeof window !== 'undefined') {
+    generalItems.push({
+      title: t('Infinite Canvas'),
+      url: '/infinite-canvas',
+      activeUrls: ['/infinite-canvas'],
+      icon: Palette,
+    })
+  }
 
   return {
     navGroups: [
@@ -67,42 +117,7 @@ export function useSidebarData(): SidebarData {
       {
         id: 'general',
         title: t('General'),
-        items: [
-          {
-            title: t('Overview'),
-            url: '/dashboard/overview',
-            icon: Activity,
-          },
-          {
-            title: t('Dashboard'),
-            url: '/dashboard/models',
-            icon: LayoutDashboard,
-          },
-          {
-            title: t('API Keys'),
-            url: '/keys',
-            icon: Key,
-          },
-          {
-            title: t('Usage Logs'),
-            url: '/usage-logs/common',
-            icon: FileText,
-          },
-          {
-            title: t('Task Logs'),
-            url: '/usage-logs/task',
-            activeUrls: ['/usage-logs/drawing'],
-            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
-            icon: ListTodo,
-          },
-          {
-            title: t('Studio'),
-            url: '/studio',
-            activeUrls: ['/studio/'],
-            configUrls: ['/studio', '/studio/'],
-            icon: WandSparkles,
-          },
-        ],
+        items: generalItems,
       },
       {
         id: 'personal',

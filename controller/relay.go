@@ -627,7 +627,7 @@ func RelayTask(c *gin.Context) {
 			task.PrivateData.ResultURL = relayInfo.TaskRelayInfo.CompletedResult.ResultURL
 		}
 		task.Quota = result.Quota
-		task.Data = result.TaskData
+		task.Data = redactImageResponseBody(result.TaskData)
 		task.Action = relayInfo.Action
 		logger.LogInfo(c, fmt.Sprintf("RelayTask insert: action=%q platform=%s model=%s", relayInfo.Action, string(result.Platform), relayInfo.OriginModelName))
 		if insertErr := task.Insert(); insertErr != nil {

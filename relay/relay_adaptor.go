@@ -37,6 +37,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
+	taskOpenAIImage "github.com/QuantumNous/new-api/relay/channel/task/openai_image"
 	taskrunninghub "github.com/QuantumNous/new-api/relay/channel/task/runninghub"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
@@ -190,10 +191,22 @@ func IsGeminiImageModel(modelName string) bool {
 	return strings.Contains(m, "image") || strings.Contains(m, "flash-preview")
 }
 
+// IsOpenAIImageTaskModel 判断是否为需要走任务流程的 OpenAI 同步图像模型。
+// 命中此规则的模型会用 openai_image.TaskAdaptor 包装 /v1/images/generations
+// 请求，从而在「任务日志」中追踪生成结果。
+func IsOpenAIImageTaskModel(modelName string) bool {
+	if modelName == "" {
+		return false
+	}
+	m := strings.ToLower(modelName)
+	return strings.HasPrefix(m, "gpt-image-")
+}
+
 // GetImageTaskAdaptor returns a TaskAdaptor only for channel types (or model
 // names) that handle image generation as task-based requests.
 // - Gemini channel OR any model matching IsGeminiImageModel returns the Gemini
 //   ImageTaskAdaptor (generateContent + responseModalities=["IMAGE","TEXT"])
+// - gpt-image-* models return the OpenAI ImageTaskAdaptor (同步请求 + 任务日志)
 // - RunningHub/Jimeng/Ali/MiniMax/VolcEngine return their standard task adaptors
 // - Pure-video channels (Kling, Vidu, Sora, VertexAI) return nil so that
 //   /v1/images/generations falls through to the standard synchronous image relay.
@@ -202,6 +215,10 @@ func GetImageTaskAdaptor(platform constant.TaskPlatform, modelName string) chann
 	// even if hosted on a Custom/OpenAI-compatible channel that proxies to Gemini.
 	if IsGeminiImageModel(modelName) {
 		return &taskGemini.ImageTaskAdaptor{}
+	}
+	// gpt-image-* 同步图像模型：包装成 task 以便写入任务日志。
+	if IsOpenAIImageTaskModel(modelName) {
+		return &taskOpenAIImage.TaskAdaptor{}
 	}
 	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
 		switch channelType {

@@ -15,3 +15,7 @@ docs
 /web/hai/node_modules
 /web/hai/dist
 !THIRD-PARTY-LICENSES.md
+!infinite-canvas/CHANGELOG.md
+!infinite-canvas/VERSION
+/infinite-canvas/web/node_modules
+/infinite-canvas/web/dist

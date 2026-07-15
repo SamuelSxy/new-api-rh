@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
 import { saveUserId } from '../lib/storage'
+import { safeRedirectPath } from '../lib/safe-redirect'
 
 function getSavedLanguage(user: User): string | undefined {
   const userData = user as Record<string, unknown>
@@ -86,7 +87,7 @@ export function useAuthRedirect() {
     }
 
     // Navigate to target page
-    const targetPath = redirectTo || '/dashboard'
+    const targetPath = safeRedirectPath(redirectTo)
     navigate({ to: targetPath, replace: true })
   }
 

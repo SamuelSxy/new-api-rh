@@ -311,3 +311,68 @@ func truncateBase64(s string) string {
 	}
 	return s[:maxKeep] + "..."
 }
+
+// redactImageResponseBody 清掉图像任务响应里的 base64 数据再落库。
+// task.Data 只用于审计/详情展示，前端展示走 data[].url；保留 b64_json 会让单行
+// 任务记录膨胀到 MB 级（gpt-image / Gemini image）。
+func redactImageResponseBody(body []byte) []byte {
+	if len(body) == 0 {
+		return body
+	}
+	var m map[string]any
+	if err := common.Unmarshal(body, &m); err != nil {
+		return body
+	}
+	// OpenAI 图像形状：data: [{url, b64_json, revised_prompt}]
+	if data, ok := m["data"].([]any); ok {
+		for i := range data {
+			item, ok := data[i].(map[string]any)
+			if !ok {
+				continue
+			}
+			if v, ok := item["b64_json"].(string); ok && v != "" {
+				item["b64_json"] = truncateBase64(v)
+			}
+			if v, ok := item["partial_images_b64"].(string); ok && v != "" {
+				item["partial_images_b64"] = truncateBase64(v)
+			}
+		}
+	}
+	// Gemini 图像形状：candidates[].content.parts[].inlineData.data
+	if cands, ok := m["candidates"].([]any); ok {
+		for ci := range cands {
+			cand, ok := cands[ci].(map[string]any)
+			if !ok {
+				continue
+			}
+			content, ok := cand["content"].(map[string]any)
+			if !ok {
+				continue
+			}
+			parts, ok := content["parts"].([]any)
+			if !ok {
+				continue
+			}
+			for pi := range parts {
+				part, ok := parts[pi].(map[string]any)
+				if !ok {
+					continue
+				}
+				for _, key := range []string{"inlineData", "inline_data"} {
+					inline, ok := part[key].(map[string]any)
+					if !ok {
+						continue
+					}
+					if v, ok := inline["data"].(string); ok && v != "" {
+						inline["data"] = truncateBase64(v)
+					}
+				}
+			}
+		}
+	}
+	b, err := common.Marshal(m)
+	if err != nil {
+		return body
+	}
+	return b
+}

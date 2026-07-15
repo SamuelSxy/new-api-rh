@@ -165,6 +165,18 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
+	// tiered_expr 计费（如 gpt-image-2 按 token 分档）：复用文本路径的 tiered 快照逻辑，
+	// 同时把 Quota 设为预扣值，让 RelayTaskSubmit 走统一的 info.PriceData.Quota 链路。
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+		priceData, err := modelPriceHelperTiered(c, info, 0, &types.TokenCountMeta{}, HandleGroupRatio(c, info))
+		if err != nil {
+			return priceData, err
+		}
+		priceData.Quota = priceData.QuotaToPreConsume
+		info.PriceData = priceData
+		return priceData, nil
+	}
+
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)

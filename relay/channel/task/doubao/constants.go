@@ -19,8 +19,8 @@ var ModelList = []string{
 var ChannelName = "doubao-video"
 
 // mediakitEnhanceModels 指定需要走 Mediakit 超分路径的模型集合。
-// 当 MediakitEnabled=true 且请求分辨率为 720p/1080p 时，系统将实际请求替换为中间分辨率：
-// 超分720：480p → 720p；超分1080：720p → 1080p。
+// 当 MediakitEnabled=true 且请求分辨率为 720p/1080p/4k 时，系统将实际请求替换为中间分辨率：
+// 超分720/1080：上游生成 480p；超分 4k：上游生成 1080p。
 // 生成完成后由 Mediakit enhance-video API 超分到目标分辨率。
 var mediakitEnhanceModels = map[string]bool{
 	"doubao-seedance-2-0-fall":      true,

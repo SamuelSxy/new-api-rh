@@ -185,6 +185,7 @@ export const TASK_ACTIONS = {
 
   // RunningHub
   IMAGE_GENERATE: 'imageGenerate', // 图像生成
+  IMAGE_EDIT: 'imageEdit', // 图像编辑（带参考图 / mask）
   TEXT_OUTPUT: 'textOutput', // 文本输出
   AUDIO_GENERATE: 'audioGenerate', // 语音合成
 } as const
@@ -303,6 +304,7 @@ export const TASK_ACTION_MAPPINGS: Record<string, StatusMapping> = {
     variant: 'blue',
   },
   [TASK_ACTIONS.IMAGE_GENERATE]: { label: 'Image Generation', variant: 'green' },
+  [TASK_ACTIONS.IMAGE_EDIT]: { label: 'Image Edit', variant: 'green' },
   [TASK_ACTIONS.TEXT_OUTPUT]: { label: 'Text Output', variant: 'neutral' },
   [TASK_ACTIONS.AUDIO_GENERATE]: { label: 'TTS', variant: 'orange' },
 }

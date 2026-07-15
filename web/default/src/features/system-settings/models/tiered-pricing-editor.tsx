@@ -1649,31 +1649,31 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   const [requestRuleGroups, setRequestRuleGroups] = useState<
     RequestRuleGroup[]
   >(() => tryParseRequestRuleExpr(currentRequestRuleExpr) || [])
-  const initRef = useRef(false)
+  const prevModelName = useRef<string | undefined>(modelName)
 
   useEffect(() => {
-    if (initRef.current) return
-    initRef.current = true
-    const parsedConfig = tryParseVisualConfig(currentExpr)
-    if (parsedConfig) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setVisualConfig(parsedConfig)
-      setEditorMode('visual')
-    } else if (currentExpr) {
-      setVisualConfig(null)
-      setEditorMode('raw')
-    } else {
-      setVisualConfig(createDefaultVisualConfig())
+    // 切换模型时强制重置内部 state；同模型内 expr 变化时不重置（避免回写触发循环）
+    if (prevModelName.current !== modelName) {
+      prevModelName.current = modelName
+      const parsedConfig = tryParseVisualConfig(currentExpr)
+      if (parsedConfig) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setVisualConfig(parsedConfig)
+        setEditorMode('visual')
+      } else if (currentExpr) {
+        setVisualConfig(null)
+        setEditorMode('raw')
+      } else {
+        setVisualConfig(createDefaultVisualConfig())
+      }
+      setRawExpr(
+        combineBillingExpr(currentExpr || '', currentRequestRuleExpr || '')
+      )
+      setRequestRuleGroups(
+        tryParseRequestRuleExpr(currentRequestRuleExpr) || []
+      )
     }
-    setRawExpr(
-      combineBillingExpr(currentExpr || '', currentRequestRuleExpr || '')
-    )
-    setRequestRuleGroups(tryParseRequestRuleExpr(currentRequestRuleExpr) || [])
-  }, [currentExpr, currentRequestRuleExpr])
-
-  useEffect(() => {
-    initRef.current = false
-  }, [modelName])
+  }, [modelName, currentExpr, currentRequestRuleExpr])
 
   const canUseVisualRules = useMemo(() => {
     if (!currentRequestRuleExpr) return true

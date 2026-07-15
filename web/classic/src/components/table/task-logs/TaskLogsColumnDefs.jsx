@@ -41,6 +41,7 @@ import {
   TASK_ACTION_TEXT_GENERATE,
   TASK_ACTION_REMIX_GENERATE,
   TASK_ACTION_IMAGE_GENERATE,
+  TASK_ACTION_IMAGE_EDIT,
   TASK_ACTION_TEXT_OUTPUT,
   TASK_ACTION_AUDIO_GENERATE,
 } from '../../../constants/common.constant';
@@ -145,6 +146,12 @@ const renderType = (type, t) => {
       return (
         <Tag color='green' shape='circle' prefixIcon={<Sparkles size={14} />}>
           {t('图像生成')}
+        </Tag>
+      );
+    case TASK_ACTION_IMAGE_EDIT:
+      return (
+        <Tag color='green' shape='circle' prefixIcon={<Sparkles size={14} />}>
+          {t('图像编辑')}
         </Tag>
       );
     case TASK_ACTION_TEXT_OUTPUT:
@@ -445,7 +452,9 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_FIRST_TAIL_GENERATE ||
           record.action === TASK_ACTION_REFERENCE_GENERATE ||
           record.action === TASK_ACTION_REMIX_GENERATE;
-        const isImageTask = record.action === TASK_ACTION_IMAGE_GENERATE;
+        const isImageTask =
+          record.action === TASK_ACTION_IMAGE_GENERATE ||
+          record.action === TASK_ACTION_IMAGE_EDIT;
         const isTextOutputTask = record.action === TASK_ACTION_TEXT_OUTPUT;
         const isSuccess = record.status === 'SUCCESS';
         const resultUrl = record.result_url;

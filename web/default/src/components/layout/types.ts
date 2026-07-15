@@ -28,6 +28,12 @@ type BaseNavItem = {
   icon?: React.ElementType
   activeUrls?: (LinkProps['to'] | (string & {}))[]
   configUrls?: (LinkProps['to'] | (string & {}))[]
+  /**
+   * When true, the item opens in a new browser tab via an anchor tag
+   * instead of navigating via the router. Used for external links such as
+   * the embedded infinite-canvas SPA.
+   */
+  external?: boolean
 }
 
 /**

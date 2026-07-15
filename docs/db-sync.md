@@ -126,6 +126,69 @@ echo "同步完成！"
 
 ---
 
+## 反向同步：生产 → 本地
+
+排查线上问题（如计费异常、配置回滚）时常用。流程与上面相反，但更轻量——本地数据通常可以随时丢弃，不需要那么谨慎。
+
+### 1. 从生产导出
+
+```bash
+# 在本地机器执行，通过 SSH 把远端 pg_dump 输出直接拉到本地文件
+ssh root@114.215.172.94 \
+  "docker exec postgres pg_dump -U root -d new-api --no-owner --no-acl" \
+  > ./prod_backup_$(date +%Y%m%d_%H%M%S).sql
+```
+
+要点：
+- `pg_dump` 在生产容器内执行，输出经 SSH 直接重定向到本地文件，无需先落盘到服务器。
+- `--no-owner --no-acl` 跳过 owner/权限声明，避免本地恢复时因角色不存在报错。
+
+### 2. 本地恢复
+
+```bash
+# 可选：备份本地当前数据
+docker exec postgres pg_dump -U root -d new-api --no-owner --no-acl \
+  > ./local_before_restore_$(date +%Y%m%d_%H%M%S).sql
+
+# 删库重建
+docker exec -i postgres psql -U root -d postgres \
+  -c 'DROP DATABASE IF EXISTS "new-api";'
+docker exec -i postgres psql -U root -d postgres \
+  -c 'CREATE DATABASE "new-api";'
+
+# 导入生产数据
+docker exec -i postgres psql -U root -d new-api \
+  < ./prod_backup_*.sql
+
+# 重启本地应用
+docker compose restart new-api
+```
+
+### 3. 只拉部分表（轻量排查）
+
+排查特定问题（如定价配置、渠道表）时无需全量，`pg_dump` 加 `-t` 指定表即可：
+
+```bash
+ssh root@114.215.172.94 \
+  "docker exec postgres pg_dump -U root -d new-api --no-owner --no-acl \
+   -t options -t channels -t tokens -t users -t abilities" \
+  > ./prod_partial_$(date +%Y%m%d_%H%M%S).sql
+```
+
+恢复时**不要 DROP DATABASE**，直接导入即可（会覆盖同名表）：
+
+```bash
+docker exec -i postgres psql -U root -d new-api \
+  < ./prod_partial_*.sql
+```
+
+### 4. 安全提示
+
+- 生产 dump 里的 `users.password`、`tokens.key` 等敏感字段会一并落到本地，**不要提交到 git**，建议放 `/tmp` 用完即删，或加入 `.gitignore`。
+- 本地若是 SQLite/MySQL（看 `docker-compose.yml` 的 DB 配置），不能直接恢复 PostgreSQL dump，需先转格式或临时起 PG 容器。
+
+---
+
 ## 注意事项
 
 | 情况 | 说明 |

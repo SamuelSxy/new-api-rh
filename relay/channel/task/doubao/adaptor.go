@@ -366,7 +366,7 @@ func hasVideoInMetadata(metadata map[string]interface{}) bool {
 
 // needsMediakitEnhancement 判断是否需要 Mediakit 超分：
 // 仅当 MediakitEnabled=true 且模型在 mediakitEnhanceModels 中
-// 且分辨率为 720p 或 1080p 时返回 true。
+// 且分辨率为 720p / 1080p / 4k 时返回 true。
 func needsMediakitEnhancement(originModelName, resolution string) bool {
 	if !system_setting.MediakitEnabled {
 		return false
@@ -375,7 +375,16 @@ func needsMediakitEnhancement(originModelName, resolution string) bool {
 		return false
 	}
 	norm := normalizeDoubaoResolution(resolution)
-	return norm == "720p" || norm == "1080p"
+	return norm == "720p" || norm == "1080p" || norm == "4k"
+}
+
+// mediakitUpstreamResolution 返回走 Mediakit 超分时上游 doubao 实际生成的分辨率。
+// 目标 720p/1080p → 上游生成 480p；目标 4k → 上游生成 1080p。
+func mediakitUpstreamResolution(targetResolution string) string {
+	if targetResolution == "4k" {
+		return "1080p"
+	}
+	return "480p"
 }
 
 // BuildRequestBody converts request into Doubao specific format.
@@ -535,10 +544,11 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	// doubao i2v 期望 "720p" / "1080p" 这类枚举，这里做兼容归一化。
 	r.Resolution = normalizeDoubaoResolution(r.Resolution)
 
-	// 若需要 Mediakit 超分：将实际分辨率存入 TaskRelayInfo，改写请求为 480p。
+	// 若需要 Mediakit 超分：将目标分辨率存入 TaskRelayInfo，改写请求为对应的上游生成分辨率
+	// （720p/1080p 目标 → 480p 上游；4k 目标 → 1080p 上游）。
 	if info != nil && info.TaskRelayInfo != nil && needsMediakitEnhancement(info.OriginModelName, r.Resolution) {
 		info.TaskRelayInfo.MediakitTargetResolution = r.Resolution
-		r.Resolution = "480p"
+		r.Resolution = mediakitUpstreamResolution(r.Resolution)
 	}
 
 	// 顶层 duration 优先级最高（与 resolveRequestedDuration 扣费逻辑保持一致），
@@ -571,6 +581,8 @@ func normalizeDoubaoResolution(value string) string {
 		return "720p"
 	case "1080", "1080p", "1920x1080":
 		return "1080p"
+	case "4k", "2160", "2160p", "3840x2160":
+		return "4k"
 	default:
 		return value
 	}
@@ -621,8 +633,8 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 
 	// 优先使用 PrivateData.ResultURL（Mediakit 超分后的 URL），
-	// fall 模型走超分路径时 task.Data 里的 video_url 是 480p 原始 TOS 地址（短期签名），
-	// 超分完成后 PrivateData.ResultURL 才是有效的最终视频地址。
+	// fall 模型走超分路径时 task.Data 里的 video_url 是上游生成的中间分辨率 TOS 地址（短期签名，
+	// 720p/1080p 目标时为 480p，4k 目标时为 1080p），超分完成后 PrivateData.ResultURL 才是有效的最终视频地址。
 	videoURL := originTask.GetResultURL()
 	if videoURL == "" {
 		videoURL = dResp.Content.VideoURL

@@ -45,5 +45,6 @@ export const TASK_ACTION_FIRST_TAIL_GENERATE = 'firstTailGenerate';
 export const TASK_ACTION_REFERENCE_GENERATE = 'referenceGenerate';
 export const TASK_ACTION_REMIX_GENERATE = 'remixGenerate';
 export const TASK_ACTION_IMAGE_GENERATE = 'imageGenerate';
+export const TASK_ACTION_IMAGE_EDIT = 'imageEdit';
 export const TASK_ACTION_TEXT_OUTPUT = 'textOutput';
 export const TASK_ACTION_AUDIO_GENERATE = 'audioGenerate';
