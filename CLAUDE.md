@@ -8,7 +8,7 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
 - **Frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
-- **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
+- **Databases**: PostgreSQL >= 9.6 (only PostgreSQL is supported; MySQL/SQLite code paths are deprecated)
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
 - **Frontend package manager**: Bun (preferred over npm/yarn/pnpm)
@@ -68,29 +68,31 @@ Do NOT directly import or call `encoding/json` in business code. These wrappers 
 
 Note: `json.RawMessage`, `json.Number`, and other type definitions from `encoding/json` may still be referenced as types, but actual marshal/unmarshal calls must go through `common.*`.
 
-### Rule 2: Database Compatibility — SQLite, MySQL >= 5.7.8, PostgreSQL >= 9.6
+### Rule 2: Database - PostgreSQL Only
 
-All database code MUST be fully compatible with all three databases simultaneously.
+This project targets **PostgreSQL (>= 9.6)** exclusively. All new database code MUST be written for PostgreSQL and does not need to be compatible with MySQL or SQLite.
 
 **Use GORM abstractions:**
 - Prefer GORM methods (`Create`, `Find`, `Where`, `Updates`, etc.) over raw SQL.
 - Let GORM handle primary key generation — do not use `AUTO_INCREMENT` or `SERIAL` directly.
 
-**When raw SQL is unavoidable:**
-- Column quoting differs: PostgreSQL uses `"column"`, MySQL/SQLite uses `` `column` ``.
-- Use `commonGroupCol`, `commonKeyCol` variables from `model/main.go` for reserved-word columns like `group` and `key`.
-- Boolean values differ: PostgreSQL uses `true`/`false`, MySQL/SQLite uses `1`/`0`. Use `commonTrueVal`/`commonFalseVal`.
-- Use `common.UsingPostgreSQL`, `common.UsingSQLite`, `common.UsingMySQL` flags to branch DB-specific logic.
+**PostgreSQL-specific conventions:**
+- Column quoting uses double quotes: `"column"`. For reserved-word columns like `group` and `key`, prefer GORM's auto-quoting or explicitly quote with `"`.
+- Boolean values use `true`/`false` (not `1`/`0`).
+- Prefer PostgreSQL-native types when designing new tables: `JSONB` for JSON storage (not `TEXT`), `TIMESTAMPTZ` for timestamps, `BIGINT` for Unix timestamps.
+- PostgreSQL operators and functions may be used freely: `@>`, `?`, JSONB operators, `STRING_AGG`, `TO_TIMESTAMP`, `DATE()`, `EXTRACT(EPOCH FROM ...)`, etc.
 
-**Forbidden without cross-DB fallback:**
-- MySQL-only functions (e.g., `GROUP_CONCAT` without PostgreSQL `STRING_AGG` equivalent)
-- PostgreSQL-only operators (e.g., `@>`, `?`, `JSONB` operators)
-- `ALTER COLUMN` in SQLite (unsupported — use column-add workaround)
-- Database-specific column types without fallback — use `TEXT` instead of `JSONB` for JSON storage
+**Raw SQL:**
+- When raw SQL is unavoidable, write PostgreSQL syntax directly. New code does NOT need to branch on `common.UsingPostgreSQL` / `common.UsingSQLite` / `common.UsingMySQL`.
+- Existing `commonGroupCol` / `commonKeyCol` / `commonTrueVal` / `commonFalseVal` variables in `model/main.go` still work and may be referenced, but new code can use `"group"`, `"key"`, `true`, `false` directly.
 
 **Migrations:**
-- Ensure all migrations work on all three databases.
-- For SQLite, use `ALTER TABLE ... ADD COLUMN` instead of `ALTER COLUMN` (see `model/main.go` for patterns).
+- All new migrations MUST work on PostgreSQL.
+- `ALTER TABLE ... ALTER COLUMN`, `ALTER TABLE ... ADD COLUMN`, `CREATE INDEX CONCURRENTLY`, and other PostgreSQL DDL are all permitted.
+- For column type changes, use `ALTER TABLE ... ALTER COLUMN ... TYPE ...` (not the SQLite column-add workaround).
+
+**Legacy compatibility code:**
+- Existing `common.UsingPostgreSQL` / `common.UsingSQLite` / `common.UsingMySQL` flags and DB-specific branches in the codebase are remnants of multi-DB support. Do not extend them. When refactoring nearby code, it is acceptable to simplify branches to the PostgreSQL path, but do not break existing MySQL/SQLite code paths without a separate cleanup task.
 
 ### Rule 3: Frontend — Prefer Bun
 

@@ -121,6 +121,10 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		actualGroupRatio = userGroupRatio
 	}
 
+	if multiplier, found := model.GetUserModelMultiplier(relayInfo.UserId, modelName); found {
+		actualGroupRatio *= multiplier
+	}
+
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
 			TextTokens:  textInputTokens,

@@ -47,6 +47,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	if info.PriceData.GroupRatioInfo.HasUserMultiplier {
+		other["user_model_ratio"] = info.PriceData.GroupRatioInfo.UserMultiplier
+	}
 	// 非按次计费（token 制）任务：写入 model_ratio，让前端展示为倍率预扣而非"按次"。
 	// 按秒计费模型跳过此块：info.PriceData.ModelRatio 已在 EstimateBilling 中被分辨率专属倍率
 	// 覆盖，不应重新拉取基础倍率覆盖；且 model_price=-1 需保留，以让前端选择正确的渲染路径。
@@ -301,14 +304,18 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		return
 	}
 
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
+	// 优先使用 task submit 时冻结的 GroupRatio（已含用户级乘子），避免重算时乘子漂移
 	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.GroupRatio > 0 {
+		finalGroupRatio = bc.GroupRatio
 	} else {
-		finalGroupRatio = groupRatio
+		groupRatio := ratio_setting.GetGroupRatio(group)
+		userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
+		if hasUserGroupRatio {
+			finalGroupRatio = userGroupRatio
+		} else {
+			finalGroupRatio = groupRatio
+		}
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）

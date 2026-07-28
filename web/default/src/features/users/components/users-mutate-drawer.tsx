@@ -74,6 +74,7 @@ import {
 import { type User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
+import { UserModelRatiosTable } from '@/features/user-model-ratios/components/user-model-ratios-table'
 
 type UsersMutateDrawerProps = {
   open: boolean
@@ -449,6 +450,14 @@ export function UsersMutateDrawer({
               )}
             </form>
           </Form>
+          {isUpdate && currentRow && (
+            <SideDrawerSection>
+              <h3 className='text-sm font-medium'>
+                {t('Model Ratio Overrides')}
+              </h3>
+              <UserModelRatiosTable userId={currentRow.id} />
+            </SideDrawerSection>
+          )}
           <SheetFooter className={sideDrawerFooterClassName()}>
             <SheetClose render={<Button variant='outline' />}>
               {t('Close')}

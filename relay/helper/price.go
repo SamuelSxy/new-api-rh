@@ -61,6 +61,13 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 		groupRatioInfo.GroupRatio = ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	}
 
+	// apply per-user per-model multiplier override
+	if multiplier, found := model.GetUserModelMultiplier(relayInfo.UserId, relayInfo.OriginModelName); found {
+		groupRatioInfo.GroupRatio *= multiplier
+		groupRatioInfo.HasUserMultiplier = true
+		groupRatioInfo.UserMultiplier = multiplier
+	}
+
 	return groupRatioInfo
 }
 

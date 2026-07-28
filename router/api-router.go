@@ -377,6 +377,17 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
 		}
 
+		// Per-user per-model ratio overrides (admin only)
+		userModelRatioRoute := apiRouter.Group("/user_model_ratio")
+		userModelRatioRoute.Use(middleware.AdminAuth())
+		{
+			userModelRatioRoute.GET("/", controller.GetAllUserModelRatios)
+			userModelRatioRoute.GET("/:user_id", controller.GetUserModelRatiosByUserId)
+			userModelRatioRoute.POST("/", controller.CreateUserModelRatio)
+			userModelRatioRoute.PUT("/", controller.UpdateUserModelRatio)
+			userModelRatioRoute.DELETE("/:id", controller.DeleteUserModelRatio)
+		}
+
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())

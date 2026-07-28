@@ -168,14 +168,18 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 							}
 						}
 						if group != "" {
-							groupRatio := ratio_setting.GetGroupRatio(group)
-							userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
+							// 优先使用 task submit 时冻结的 GroupRatio（已含用户级乘子），避免重算时乘子漂移
 							var finalGroupRatio float64
-							if hasUserGroupRatio {
-								finalGroupRatio = userGroupRatio
+							if bc := task.PrivateData.BillingContext; bc != nil && bc.GroupRatio > 0 {
+								finalGroupRatio = bc.GroupRatio
 							} else {
-								finalGroupRatio = groupRatio
+								groupRatio := ratio_setting.GetGroupRatio(group)
+								userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
+								if hasUserGroupRatio {
+									finalGroupRatio = userGroupRatio
+								} else {
+									finalGroupRatio = groupRatio
+								}
 							}
 
 							// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio

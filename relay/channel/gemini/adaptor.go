@@ -57,6 +57,15 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	return nil, errors.New("not implemented")
 }
 
+// Gemini/Imagen supported aspect ratios.
+// https://ai.google.dev/gemini-api/docs/imagen
+var allowedAspectRatios = map[string]bool{
+	"1:1": true, "1:4": true, "1:8": true,
+	"2:3": true, "3:2": true, "3:4": true, "4:1": true,
+	"4:3": true, "4:5": true, "5:4": true, "8:1": true,
+	"9:16": true, "16:9": true, "21:9": true,
+}
+
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return nil, errors.New("not supported model for image generation, only imagen models are supported")
@@ -84,6 +93,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 
+	if !allowedAspectRatios[aspectRatio] {
+		return nil, fmt.Errorf("invalid aspect ratio %q, allowed values: 1:1, 1:4, 1:8, 2:3, 3:2, 3:4, 4:1, 4:3, 4:5, 5:4, 8:1, 9:16, 16:9, 21:9", aspectRatio)
+	}
+
 	// build gemini imagen request
 	geminiRequest := dto.GeminiImageRequest{
 		Instances: []dto.GeminiImageInstance{
@@ -100,8 +113,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	// Set imageSize when quality parameter is specified
 	// Map quality parameter to imageSize (only supported by Standard and Ultra models)
-	// quality values: auto, high, medium, low (for gpt-image-1), hd, standard (for dall-e-3)
-	// imageSize values: 1K (default), 2K
+	// quality values: auto, high, medium, low (for gpt-image-1), hd, standard (for dall-e-3), 4K (for imagen-4)
+	// imageSize values: 1K (default), 2K, 4K
 	// https://ai.google.dev/gemini-api/docs/imagen
 	// https://platform.openai.com/docs/api-reference/images/create
 	if request.Quality != "" {
@@ -111,6 +124,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			imageSize = "2K"
 		case "2K":
 			imageSize = "2K"
+		case "4K":
+			imageSize = "4K"
 		case "standard", "medium", "low", "auto", "1K":
 			imageSize = "1K"
 		default:

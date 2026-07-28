@@ -381,10 +381,23 @@ func (a *ImageTaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *rel
 	}
 
 	taskReq := relaycommon.TaskSubmitReq{
-		Model:  imgReq.Model,
-		Prompt: imgReq.Prompt,
-		Size:   imgReq.Size,
-		Images: images,
+		Model:       imgReq.Model,
+		Prompt:      imgReq.Prompt,
+		Size:        imgReq.Size,
+		Quality:     imgReq.Quality,
+		AspectRatio: imgReq.AspectRatio,
+		Images:      images,
+	}
+
+	// camelCase 兜底：前端可能直接用 Gemini 原生的 aspectRatio 字段，
+	// 由于 struct tag 是 aspect_ratio，camelCase 版本会落到 Extra 里。
+	if taskReq.AspectRatio == "" {
+		if v, ok := imgReq.Extra["aspectRatio"]; ok {
+			var s string
+			if err := common.Unmarshal(v, &s); err == nil {
+				taskReq.AspectRatio = strings.TrimSpace(s)
+			}
+		}
 	}
 
 	// Pro 模型专属参数：存入 Metadata 供 BuildRequestBody 转发
@@ -492,8 +505,8 @@ func (a *ImageTaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.Re
 			{Role: "user", Parts: parts},
 		},
 		GenerationConfig: dto.GeminiChatGenerationConfig{
-			ResponseModalities: []string{"IMAGE", "TEXT"},
-			ImageConfig:        json.RawMessage(`{}`),
+			ResponseModalities: []string{"IMAGE"},
+			ImageConfig:        buildGeminiImageConfig(req.Size, req.AspectRatio, req.Quality),
 		},
 	}
 
@@ -516,7 +529,81 @@ func (a *ImageTaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.Re
 	if err != nil {
 		return nil, err
 	}
+	common.SysLog(fmt.Sprintf("gemini_image: request body=%s", string(data)))
 	return bytes.NewReader(data), nil
+}
+
+// buildGeminiImageConfig converts OpenAI-style size/quality parameters into
+// Gemini's image_config (aspectRatio + imageSize). Returns {} when none is
+// specified so the upstream default still applies.
+//
+// aspectRatio: when non-empty, used directly (e.g. "1:1", "16:9"). Takes
+//
+//	precedence over size.
+//
+// size: fallback when aspectRatio is empty. Accepts either a WxH pixel size
+//
+//	(e.g. "1024x1024" -> "1:1") or a raw ratio already in Gemini's "A:B"
+//	form (passed through unchanged).
+//
+// quality: "1k"/"standard"/"low" -> "1K", "hd"/"high"/"2k" -> "2K",
+//
+//	"4k"/"ultra" -> "4K", other non-empty -> "1K". Empty quality
+//	omits imageSize entirely.
+func buildGeminiImageConfig(size, aspectRatio, quality string) json.RawMessage {
+	resolvedRatio := strings.TrimSpace(aspectRatio)
+	if resolvedRatio == "" {
+		size = strings.TrimSpace(size)
+		if size != "" {
+			if strings.Contains(size, ":") {
+				resolvedRatio = size
+			} else {
+				switch size {
+				case "256x256", "512x512", "1024x1024":
+					resolvedRatio = "1:1"
+				case "1536x1024":
+					resolvedRatio = "3:2"
+				case "1024x1536":
+					resolvedRatio = "2:3"
+				case "1024x1792":
+					resolvedRatio = "9:16"
+				case "1792x1024":
+					resolvedRatio = "16:9"
+				}
+			}
+		}
+	}
+
+	imageSize := ""
+	quality = strings.TrimSpace(quality)
+	if quality != "" {
+		switch strings.ToLower(quality) {
+		case "1k", "standard", "low":
+			imageSize = "1K"
+		case "hd", "high", "2k":
+			imageSize = "2K"
+		case "4k", "ultra":
+			imageSize = "4K"
+		default:
+			imageSize = "1K"
+		}
+	}
+
+	if resolvedRatio == "" && imageSize == "" {
+		return json.RawMessage(`{}`)
+	}
+	cfg := map[string]interface{}{}
+	if resolvedRatio != "" {
+		cfg["aspectRatio"] = resolvedRatio
+	}
+	if imageSize != "" {
+		cfg["imageSize"] = imageSize
+	}
+	data, err := common.Marshal(cfg)
+	if err != nil {
+		return json.RawMessage(`{}`)
+	}
+	return data
 }
 
 func (a *ImageTaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
